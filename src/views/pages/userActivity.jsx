@@ -3,17 +3,10 @@ import q from 'q';
 import querystring from 'querystring';
 import constants from '../../constants';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
-
-import ListingListFactory from '../components/ListingList';
-var ListingList;
-
-import UserActivitySubnavFactory from '../components/UserActivitySubnav';
-var UserActivitySubnav;
-
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
+import Loading from '../components/Loading';
+import ListingList from '../components/ListingList';
+import UserActivitySubnav from '../components/UserActivitySubnav';
+import TrackingPixel from '../components/TrackingPixel';
 
 class UserActivityPage extends React.Component {
   constructor(props) {
@@ -84,7 +77,7 @@ class UserActivityPage extends React.Component {
     var tracking;
     var loginPath = props.loginPath;
 
-    if (state.data.meta && props.renderTracking) {
+    if (state.data.meta && this.props.renderTracking) {
       tracking = (
         <TrackingPixel
           url={ state.data.meta.tracking }
@@ -92,21 +85,26 @@ class UserActivityPage extends React.Component {
           loid={ props.loid }
           loidcreated={ props.loidcreated }
           compact={ this.props.compact }
-          />);
+          experiments={ this.props.experiments }
+        />);
     }
 
     return (
       <div className="user-page user-activity">
-        <UserActivitySubnav app={ app } sort={ sort } name={ name } activity={ props.activity }
-                            user={ user } loginPath={ props.loginPath } />
+        <UserActivitySubnav
+          app={ app }
+          sort={ sort }
+          name={ name }
+          activity={ props.activity }
+          user={ user }
+          loginPath={ props.loginPath } />
 
         { loading }
 
-        <div className={'container listing-container'} >
+        <div className={'container Listing-container'} >
           <ListingList
             listings={activities}
             firstPage={page}
-
             https={ props.https }
             httpsProxy={ props.httpsProxy }
             app={app}
@@ -117,6 +115,7 @@ class UserActivityPage extends React.Component {
             api={api}
             hideUser={ true }
             loginPath={ loginPath }
+            apiOptions={ props.apiOptions }
           />
         </div>
 
@@ -168,13 +167,4 @@ class UserActivityPage extends React.Component {
   }
 }
 
-function UserActivityPageFactory(app) {
-  ListingList = ListingListFactory(app);
-  Loading = LoadingFactory(app);
-  UserActivitySubnav = UserActivitySubnavFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-
-  return app.mutate('core/pages/userActivity', UserActivityPage);
-}
-
-export default UserActivityPageFactory;
+export default UserActivityPage;

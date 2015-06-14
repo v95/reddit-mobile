@@ -3,8 +3,7 @@ import MyMath from '../../../lib/danehansen/utils/MyMath';
 import Point from '../../../lib/danehansen/geom/Point';
 import DrawSVGPlugin from '../../../lib/greensock/plugins/DrawSVGPlugin.min.js';
 
-import SVGFactory from '../../components/SVG';
-var SVG;
+import SVG from '../../components/SVG';
 
 const _EYE_RADIUS = 1.142124;
 const _EYE_HEIGHT = 11.1461885;
@@ -184,49 +183,52 @@ class SnooIcon extends React.Component {
   }
 
   tweenOn(callback) {
-
-    var BACK_BASE = 1.70158;
-    var refs = this.refs;
-    var nodes = [refs.rightEye, refs.leftEye, refs.rightEar, refs.leftEar];
-    var timeline = new TimelineLite({onComplete:callback});
-    timeline.add(TweenLite.from(this.refs.face.getDOMNode(), 0.3, {transformOrigin:'50% 50%', scale:0}));
-    var dur = timeline.duration();
-    for (var i = 0, iLen = nodes.length; i < iLen; i++) {
-      var overshoot = MyMath.random(2);
-      timeline.add(TweenLite.from(nodes[i].getDOMNode(), (BACK_BASE + overshoot) * 0.2, {scale: 0, transformOrigin: '50% 50%', ease: Back.easeOut.config(BACK_BASE + overshoot)}), 0.15 + MyMath.random(0.4));
-      if (i === 1) {
-        timeline.call(this.startBlinking, null, this, timeline.duration());
+    if (SVG.ENABLED) {
+      var BACK_BASE = 1.70158;
+      var refs = this.refs;
+      var nodes = [refs.rightEye, refs.leftEye, refs.rightEar, refs.leftEar];
+      var timeline = new TimelineLite({onComplete:callback});
+      timeline.add(TweenLite.from(this.refs.face.getDOMNode(), 0.3, {transformOrigin:'50% 50%', scale:0}));
+      var dur = timeline.duration();
+      for (var i = 0, iLen = nodes.length; i < iLen; i++) {
+        var overshoot = MyMath.random(2);
+        timeline.add(TweenLite.from(nodes[i].getDOMNode(), (BACK_BASE + overshoot) * 0.2, {scale: 0, transformOrigin: '50% 50%', ease: Back.easeOut.config(BACK_BASE + overshoot)}), 0.15 + MyMath.random(0.4));
+        if (i === 1) {
+          timeline.call(this.startBlinking, null, this, timeline.duration());
+        }
       }
+      var base = refs.base.getDOMNode();
+      var stem = refs.stem.getDOMNode();
+      timeline.add(TweenLite.from(base, 0.001, {strokeWidth: 0, autoRound: false}), dur);
+      timeline.add(TweenLite.from(base, 0.2, {attr: {x1: _ROOT.x, y1: _ROOT.y}, ease: Cubic.easeIn}), dur);
+      dur += 0.2;
+      timeline.add(TweenLite.from(stem, 0.001, {strokeWidth: 0, autoRound: false}), dur);
+      timeline.add(TweenLite.from(stem, 0.2, {attr: {x2: _ELBOW.x, y2: _ELBOW.y}, ease: Cubic.easeOut}), dur);
+      dur += 0.2;
+      timeline.add(TweenLite.from(refs.dingleberry.getDOMNode(), 0.7, {transformOrigin: '50% 50%', scale: 0, ease: Back.easeOut.config(5)}), dur);
+      timeline.add(TweenLite.from(refs.mouth.getDOMNode(), 0.2, {drawSVG: 0, ease: Cubic.easeInOut}), dur);
     }
-    var base = refs.base.getDOMNode();
-    var stem = refs.stem.getDOMNode();
-    timeline.add(TweenLite.from(base, 0.001, {strokeWidth: 0, autoRound: false}), dur);
-    timeline.add(TweenLite.from(base, 0.2, {attr: {x1: _ROOT.x, y1: _ROOT.y}, ease: Cubic.easeIn}), dur);
-    dur += 0.2;
-    timeline.add(TweenLite.from(stem, 0.001, {strokeWidth: 0, autoRound: false}), dur);
-    timeline.add(TweenLite.from(stem, 0.2, {attr: {x2: _ELBOW.x, y2: _ELBOW.y}, ease: Cubic.easeOut}), dur);
-    dur += 0.2;
-    timeline.add(TweenLite.from(refs.dingleberry.getDOMNode(), 0.7, {transformOrigin: '50% 50%', scale: 0, ease: Back.easeOut.config(5)}), dur);
-    timeline.add(TweenLite.from(refs.mouth.getDOMNode(), 0.2, {drawSVG: 0, ease: Cubic.easeInOut}), dur);
   }
 
   tweenOff(callback) {
-    this._blinkable = false;
-    var refs = this.refs;
-    var nodes = [refs.face, refs.rightEar, refs.leftEar, refs.rightEye, refs.leftEye, refs.dingleberry];
-    var timeline = new TimelineLite({onComplete: callback});
-    var lower = refs.lowerEyelids.getDOMNode();
-    timeline.add(TweenLite.to([refs.upperEyelids.getDOMNode(), lower], 0, {attr: {height: 0}}));
-    timeline.add(TweenLite.to(lower, 0, {attr: {y: 12}}));
-    timeline.add(TweenLite.to(this.refs.stem.getDOMNode(), 0.15, {attr: {x2: _ELBOW.x, y2: _ELBOW.y}, ease: Cubic.easeIn}), 0);
-    timeline.add(TweenLite.to(this.refs.stem.getDOMNode(), 0.001, {strokeWidth: 0, autoRound: false}));
-    timeline.add(TweenLite.to(this.refs.base.getDOMNode(), 0.15, {attr: {x1: _ROOT.x, y1: _ROOT.y}, transformOrigin: '50% 50%', ease: Cubic.easeOut}));
-    timeline.add(TweenLite.to(this.refs.base.getDOMNode(), 0.001, {strokeWidth: 0, autoRound: false}));
+    if (SVG.ENABLED) {
+      this._blinkable = false;
+      var refs = this.refs;
+      var nodes = [refs.face, refs.rightEar, refs.leftEar, refs.rightEye, refs.leftEye, refs.dingleberry];
+      var timeline = new TimelineLite({onComplete: callback});
+      var lower = refs.lowerEyelids.getDOMNode();
+      timeline.add(TweenLite.to([refs.upperEyelids.getDOMNode(), lower], 0, {attr: {height: 0}}));
+      timeline.add(TweenLite.to(lower, 0, {attr: {y: 12}}));
+      timeline.add(TweenLite.to(this.refs.stem.getDOMNode(), 0.15, {attr: {x2: _ELBOW.x, y2: _ELBOW.y}, ease: Cubic.easeIn}), 0);
+      timeline.add(TweenLite.to(this.refs.stem.getDOMNode(), 0.001, {strokeWidth: 0, autoRound: false}));
+      timeline.add(TweenLite.to(this.refs.base.getDOMNode(), 0.15, {attr: {x1: _ROOT.x, y1: _ROOT.y}, transformOrigin: '50% 50%', ease: Cubic.easeOut}));
+      timeline.add(TweenLite.to(this.refs.base.getDOMNode(), 0.001, {strokeWidth: 0, autoRound: false}));
 
-    for (var i = 0, iLen = nodes.length; i < iLen; i++) {
-      timeline.add(TweenLite.to(nodes[i].getDOMNode(), 0.3, {scale: 0, transformOrigin: '50% 50%', ease: Cubic.easeOut}), 0);
+      for (var i = 0, iLen = nodes.length; i < iLen; i++) {
+        timeline.add(TweenLite.to(nodes[i].getDOMNode(), 0.3, {scale: 0, transformOrigin: '50% 50%', ease: Cubic.easeOut}), 0);
+      }
+      timeline.add(TweenLite.to(this.refs.mouth.getDOMNode(), 0.2, {drawSVG: 0, ease: Cubic.easeInOut}), 0);
     }
-    timeline.add(TweenLite.to(this.refs.mouth.getDOMNode(), 0.2, {drawSVG: 0, ease: Cubic.easeInOut}), 0);
   }
 }
 
@@ -234,9 +236,4 @@ SnooIcon.defaultProps = {
   played: false,
 };
 
-function SnooIconFactory(app) {
-  SVG = SVGFactory(app);
-  return app.mutate('core/components/icons/SnooIcon', SnooIcon);
-}
-
-export default SnooIconFactory;
+export default SnooIcon;

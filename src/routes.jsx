@@ -3,6 +3,8 @@
 import q from 'q';
 import { stringify } from 'querystring';
 import React from 'react';
+import superagent from 'superagent';
+import querystring from 'querystring';
 
 // Load models from snoode (api lib) so we can post new ones.
 import { models } from 'snoode';
@@ -10,65 +12,34 @@ import { models } from 'snoode';
 // Load up the main react elements. Because of the way we define mutators, we
 // need to use factories that take an app instance (with registered mutators)
 // instead of requiring the elements directly. Womp womp
-import IndexPageFactory from './views/pages/index';
-var IndexPage;
-
-import ListingPageFactory from './views/pages/listing';
-var ListingPage;
-
-import SubredditAboutPageFactory from './views/pages/subredditAbout';
-var SubredditAboutPage;
-
-import SearchPageFactory from './views/pages/search';
-var SearchPage;
-
-import UserProfilePageFactory from './views/pages/userProfile';
-var UserProfilePage;
-
-import UserGildPageFactory from './views/pages/userGild';
-var UserGildPage;
-
-import UserActivityPageFactory from './views/pages/userActivity';
-var UserActivityPage;
-
-import ErrorPageFactory from './views/pages/error';
-var ErrorPage;
-
-import FAQPageFactory from './views/pages/faq';
-var FAQPage;
-
-import LoginPageFactory from './views/pages/login';
-var LoginPage;
-
-import RegisterPageFactory from './views/pages/register';
-var RegisterPage;
-
-import LayoutFactory from './views/layouts/DefaultLayout';
-var Layout;
-
-import BodyLayoutFactory from './views/layouts/BodyLayout';
-var BodyLayout;
-
-import TextSubNavFactory from './views/components/TextSubNav';
-var TextSubNav;
+import IndexPage from './views/pages/index';
+import ListingPage from './views/pages/listing';
+import SubredditAboutPage from './views/pages/subredditAbout';
+import SearchPage from './views/pages/search';
+import UserProfilePage from './views/pages/userProfile';
+import UserGildPage from './views/pages/userGild';
+import UserActivityPage from './views/pages/userActivity';
+import UserSavedPage from './views/pages/userSaved';
+import ErrorPage from './views/pages/error';
+import FAQPage from './views/pages/faq';
+import LoginPage from './views/pages/login';
+import RegisterPage from './views/pages/register';
+import Layout from './views/layouts/DefaultLayout';
+import BodyLayout from './views/layouts/BodyLayout';
+import TextSubNav from './views/components/TextSubNav';
 
 // The main entry point to this file is the routes function. It will call the
 // React factories to get at the mutated react elements, and map routes.
 function routes(app) {
-  IndexPage = IndexPageFactory(app);
-  ListingPage = ListingPageFactory(app);
-  SubredditAboutPage = SubredditAboutPageFactory(app);
-  SearchPage = SearchPageFactory(app);
-  UserProfilePage = UserProfilePageFactory(app);
-  UserGildPage = UserGildPageFactory(app);
-  UserActivityPage = UserActivityPageFactory(app);
-  ErrorPage = ErrorPageFactory(app);
-  FAQPage = FAQPageFactory(app);
-  LoginPage = LoginPageFactory(app);
-  RegisterPage = RegisterPageFactory(app);
-  Layout = LayoutFactory(app);
-  BodyLayout = BodyLayoutFactory(app);
-  TextSubNav = TextSubNavFactory(app);
+  let router = app.router;
+
+  function formatSubreddit(s) {
+    return {
+      icon: s.icon,
+      display_name: s.display_name,
+      url: s.url,
+    }
+  }
 
   function loadUserSubscriptions (app, ctx, token) {
     if (app.getState && app.getState('subscriptions')) {
@@ -101,11 +72,12 @@ function routes(app) {
         options.query.sort = sort;
         options.query.sr_detail = true;
         options.query.feature = 'mobile_settings';
+        options.query.limit = 250;
 
         try {
           app.api.subreddits.get(options).then(function(subreddits) {
             if (subreddits.data.length > 0) {
-              resolve(subreddits.data);
+              resolve(subreddits.data.map(formatSubreddit));
             } else {
               loadUserSubscriptions(app, ctx).then(function(data) {
                 resolve(data);
@@ -156,8 +128,43 @@ function routes(app) {
     }
   }
 
+  function loadUserPrefs (app, ctx, token) {
+    if (token) {
+      if (app.getState && app.getState('prefs')) {
+        return new Promise(function(resolve) {
+          resolve(app.getState('prefs'));
+        });
+      } else {
+        return new Promise(function(resolve, reject) {
+          var apiOptions =  {
+            origin: app.getConfig('authAPIOrigin'),
+            headers: {
+              'Authorization': `bearer ${token}`,
+              'user-agent': ctx.headers['user-agent'],
+            }
+          };
+
+          var options = app.api.buildOptions(apiOptions);
+
+          try {
+            app.api.preferences.get(options).then(function(prefs) {
+              resolve(prefs.data);
+            }, function(error) {
+              reject(error);
+            });
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }
+    } else {
+      return noop();
+    }
+  }
+
   function populateData(app, ctx, token, promises=[]) {
     promises.push(loadUserData(app, ctx, token));
+    promises.push(loadUserPrefs(app, ctx, token));
     promises.push(loadUserSubscriptions(app, ctx, token));
 
     return new Promise(function(resolve, reject) {
@@ -200,14 +207,18 @@ function routes(app) {
       manifest: app.getConfig('manifest'),
       assetPath: app.getConfig('assetPath'),
       loginPath: app.getConfig('loginPath'),
-      loidcreated: ctx.loidcreated,
+      adsPath: app.getConfig('adsPath'),
+      origin: app.getConfig('origin'),
+      propertyId: app.getConfig('googleAnalyticsId'),
       showBetaBanner: ctx.showBetaBanner,
       userAgent: ctx.userAgent,
       csrf: ctx.csrf,
       compact: ctx.compact ? ctx.compact.toString() === 'true' : false,
+      experiments: ctx.experiments,
       query: ctx.query,
       params: ctx.params,
       url: ctx.path,
+      isGoogleCrawler: ctx.isGoogleCrawler,
       renderTracking: app.getConfig('renderTracking'),
       apiOptions: {
         useCache: ctx.useCache,
@@ -222,13 +233,15 @@ function routes(app) {
 
     props.app = app;
     props.api = app.api;
-    props.loid = ctx.loid;
 
     if (ctx.token) {
       props.token = ctx.token;
       props.tokenExpires = ctx.tokenExpires;
       props.apiOptions.origin = app.getConfig('authAPIOrigin');
       props.apiOptions.headers['Authorization'] = `bearer ${props.token}`
+    } else {
+      props.loid = ctx.loid;
+      props.loidcreated = ctx.loidcreated;
     }
 
     props.apiOptions = props.api.buildOptions(props.apiOptions);
@@ -248,7 +261,7 @@ function routes(app) {
     return props;
   }
 
-  app.router.get('health', '/health', function * () {
+  router.get('health', '/health', function * () {
     this.body = 'OK';
   });
 
@@ -291,13 +304,14 @@ function routes(app) {
       promises.push(noop());
     }
 
-    var [data, subredditData, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, subredditData, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
     props.data = data;
 
     props.subredditId = ((subredditData || {}).data || {}).name;
     props.userIsSubscribed =  ((subredditData || {}).data || {}).user_is_subscriber;
 
     props.user = user;
+    props.prefs = prefs;
     props.subscriptions = subscriptions;
 
     try {
@@ -317,12 +331,12 @@ function routes(app) {
   }
 
   // The homepage route.
-  app.router.get('index', '/', indexPage);
+  router.get('index', '/', indexPage);
 
-  app.router.get('index.subreddit', '/r/:subreddit', indexPage);
-  app.router.get('index.multi', '/u/:user/m/:multi', indexPage);
+  router.get('index.subreddit', '/r/:subreddit', indexPage);
+  router.get('index.multi', '/u/:user/m/:multi', indexPage);
 
-  app.router.get('subreddit.about', '/r/:subreddit/about', function *(next) {
+  router.get('subreddit.about', '/r/:subreddit/about', function *(next) {
     var page;
     var ctx = this;
 
@@ -334,9 +348,10 @@ function routes(app) {
       SubredditAboutPage.populateData(props.api, props, this.renderSynchronous, false),
     ];
 
-    var [data, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
     props.data = data;
     props.user = user;
+    props.prefs = prefs;
     props.subscriptions = subscriptions;
 
     Object.assign(props, {
@@ -386,9 +401,10 @@ function routes(app) {
       );
     }
 
-    var [data, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
     props.data = data;
     props.user = user;
+    props.prefs = prefs;
     props.subscriptions = subscriptions;
 
     try {
@@ -407,8 +423,8 @@ function routes(app) {
     this.props = props;
   }
 
-  app.router.get('search.index', '/search', searchPage);
-  app.router.get('search.subreddit', '/r/:subreddit/search', searchPage);
+  router.get('search.index', '/search', searchPage);
+  router.get('search.subreddit', '/r/:subreddit/search', searchPage);
 
   function * commentsPage(next) {
     var page;
@@ -418,15 +434,17 @@ function routes(app) {
       subredditName: ctx.params.subreddit,
       sort: ctx.query.sort,
       listingId: ctx.params.listingId,
+      commentId: ctx.params.commentId,
     });
 
     var promises = [
       ListingPage.populateData(props.api, props, this.renderSynchronous, this.useCache),
     ];
 
-    var [data, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
     props.data = data;
     props.user = user;
+    props.prefs = prefs;
     props.subscriptions = subscriptions;
 
     if (data && data.data) {
@@ -435,7 +453,7 @@ function routes(app) {
       props.metaDescription = `${listing.title} : ${listing.score} points and ${listing.num_comments} at reddit.com`;
     }
 
-    var key = `listing-${props.listingId}-${stringify(this.query)}`;
+    var key = `listing-${props.listingId}-${props.commentId || ''}${stringify(this.query)}`;
 
     try {
       page = (
@@ -452,12 +470,14 @@ function routes(app) {
     this.props = props;
   }
 
-  app.router.get('comments.listingid', '/comments/:listingId', commentsPage);
-  app.router.get('comments.title', '/comments/:listingId/:listingTitle', commentsPage);
-  app.router.get('comments.subreddit', '/r/:subreddit/comments/:listingId', commentsPage);
-  app.router.get('comments.index', '/r/:subreddit/comments/:listingId/:listingTitle', commentsPage);
 
-  app.router.get('user.profile', '/u/:user', function *(next) {
+  router.get('comments.title', '/comments/:listingId/:listingTitle', commentsPage);
+  router.get('comments.listingid', '/comments/:listingId', commentsPage);
+  router.get('comments.permalink', '/r/:subreddit/comments/:listingId/:listingTitle/:commentId', commentsPage);
+  router.get('comments.index', '/r/:subreddit/comments/:listingId/:listingTitle', commentsPage);
+  router.get('comments.subreddit', '/r/:subreddit/comments/:listingId', commentsPage);
+
+  router.get('user.profile', '/u/:user', function *(next) {
     var page;
     var ctx = this;
 
@@ -471,9 +491,10 @@ function routes(app) {
       UserProfilePage.populateData(props.api, props, this.renderSynchronous, this.useCache),
     ];
 
-    var [data, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
     props.data = data;
     props.user = user;
+    props.prefs = prefs;
     props.subscriptions = subscriptions;
 
     var key = `user-profile-${ctx.params.user}`;
@@ -498,7 +519,7 @@ function routes(app) {
     this.props = props;
   });
 
-  app.router.get('user.gild', '/u/:user/gild', function *(next) {
+  router.get('user.gild', '/u/:user/gild', function *(next) {
     var page;
     var ctx = this;
 
@@ -510,12 +531,13 @@ function routes(app) {
       UserGildPage.populateData(props.api, props, this.renderSynchronous, this.useCache),
     ];
 
-    var [data, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
     props.data = data;
 
     Object.assign(props, {
       data: data,
       user: user,
+      prefs: prefs,
       subscriptions: subscriptions,
       title: `about u/${ctx.params.user}`,
       metaDescription: `about u/${ctx.params.user} on reddit.com`,
@@ -543,7 +565,7 @@ function routes(app) {
     this.props = props;
   });
 
-  app.router.get('user.activity', '/u/:user/activity', function *(next) {
+  router.get('user.activity', '/u/:user/activity', function *(next) {
     var page;
     var sort = this.query.sort || 'hot';
     var activity = this.query.activity || 'comments';
@@ -563,11 +585,12 @@ function routes(app) {
       UserActivityPage.populateData(props.api, props, this.renderSynchronous, this.useCache),
     ];
 
-    var [data, user, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
 
     Object.assign(props, {
       data: data,
       user: user,
+      prefs: prefs,
       subscriptions: subscriptions,
       title: `about u/${ctx.params.user}`,
       metaDescription: `about u/${ctx.params.user} on reddit.com`,
@@ -594,7 +617,66 @@ function routes(app) {
     this.props = props;
   });
 
-  app.router.get('static.faq', '/faq', function * () {
+  function * saved (hidden=false) {
+    var page;
+    var sort = this.query.sort || 'hot';
+
+    var ctx = this;
+    var savedText = 'saved';
+
+    if (hidden) {
+      savedText = 'hidden';
+    }
+
+    var props = buildProps(ctx, {
+      userName: ctx.params.user,
+      after: ctx.query.after,
+      before: ctx.query.before,
+      page: parseInt(ctx.query.page) || 0,
+      sort: sort,
+      hidden: hidden,
+    });
+
+    var promises = [
+      UserSavedPage.populateData(props.api, props, this.renderSynchronous, this.useCache),
+    ];
+
+    var [data, user, prefs, subscriptions] = yield populateData(app, ctx, ctx.token, promises);
+
+    Object.assign(props, {
+      data: data,
+      user: user,
+      subscriptions: subscriptions,
+      title: `${savedText} links`,
+      metaDescription: `u/${user}'s saved links on reddit.com`,
+    });
+
+    try {
+      var key = 'saved-' + hidden.toString() + stringify(this.query);
+
+      page = (
+        <BodyLayout {...props} app={app}>
+          <UserSavedPage {...props} key={ key } app={app}/>
+        </BodyLayout>
+      );
+    } catch (e) {
+      return app.error(e, this, next);
+    }
+
+    this.body = page;
+    this.layout = Layout;
+    this.props = props;
+  }
+
+  router.get('saved', '/u/:user/saved', function * () {
+    yield saved.call(this, false);
+  });
+
+  router.get('hidden', '/u/:user/hidden', function * () {
+    yield saved.call(this, true);
+  });
+
+  router.get('static.faq', '/faq', function * () {
     var ctx = this;
 
     var props = buildProps(this, {
@@ -616,7 +698,7 @@ function routes(app) {
     this.props = props;
   });
 
-  app.router.get('user.login', '/login', function * () {
+  router.get('user.login', '/login', function * () {
     var ctx = this;
 
     var props = buildProps(this, {
@@ -638,7 +720,7 @@ function routes(app) {
     this.props = props;
   });
 
-  app.router.get('user.register', '/register', function * () {
+  router.get('user.register', '/register', function * () {
     var ctx = this;
 
     var props = buildProps(this, {
@@ -667,7 +749,7 @@ function routes(app) {
     'default': 'Oops, looks like something went wrong.',
   };
 
-  app.router.get('static.error', /\/([45]\d\d)/, function * () {
+  router.get('static.error', /\/([45]\d\d)/, function * () {
     var ctx = this;
     var statusCode = ctx.captures[0];
     var statusMsg = errorMsgMap[statusCode] || errorMsgMap['default'];
@@ -676,6 +758,8 @@ function routes(app) {
     var props = buildProps(this, {
       referrer: ctx.headers.referer === ctx.path ? '/' : ctx.headers.referer,
       title: `${statusCode} - ${statusMsg}`,
+      status: ctx.status,
+      originalUrl: decodeURIComponent(ctx.query.originalUrl) || '/',
     });
 
     if (statusCode.match(/^5.*/) && app.getConfig('debug')) {
@@ -697,49 +781,93 @@ function routes(app) {
     this.props = props;
   });
 
-  // Server-side only!
-  app.router.post('vote', '/vote/:id',
-    function * () {
-      var endpoints = {
-        '1': 'comment',
-        '3': 'listing',
-      }
+  function tryLoad (url, options) {
+    var endpoint = options.origin + url + '.json';
 
-      var id = this.params.id;
-      var endpoint = endpoints[id[1]];
+    return new Promise(function(resolve, reject) {
+      try {
+        let sa = superagent
+                  .head(endpoint)
+                  .set(options.headers);
 
-      var vote = new models.Vote({
-        direction: parseInt(this.query.direction),
-        id: id,
-      });
+        // bombs in browser
+        if (sa.redirects) {
+          sa.redirects(0);
+        }
 
-      if (vote.get('direction') !== undefined && vote.get('id')) {
-        var options = app.api.buildOptions(props.apiOptions);
-        options.model = vote;
-
-        api.votes.post(options).done(function() {
+        sa.end(function(err, res) {
+          if (err || !res || !res.ok) {
+            resolve();
+          } else {
+            resolve(true);
+          }
         });
+      } catch (e) {
+        console.log(e, e.stack);
       }
     });
+  }
 
-  app.router.post('/comment', function * () {
-    var ctx = this;
+  router.get('/goto', function * () {
+    let location = this.query.location.toLowerCase();
+    let token = this.token;
+    let apiOptions;
+    let result;
 
-    var comment = new models.Comment({
-      thingId: ctx.body.thingId,
-      text: ctx.body.text
-    });
+    app.emit('goto', location);
 
-    if (!this.token) {
-      return this.redirect(this.headers.referer || '/');
+    if (token) {
+      apiOptions =  {
+        origin: app.getConfig('authAPIOrigin'),
+        headers: {
+          'Authorization': `bearer ${token}`,
+        }
+      };
+    } else {
+      apiOptions =  {
+        origin: app.getConfig('nonAuthAPIOrigin'),
+      };
     }
 
-    var options = app.api.buildOptions(props.apiOptions);
-    options.model = comment;
+    let options = app.api.buildOptions(apiOptions);
 
-    api.comments.post(options).done(function() {
-      this.redirect(this.headers.referer || '/');
+    if (this.headers['user-agent']) {
+      options.headers['user-agent'] = this.headers['user-agent'];
+    }
+
+    if (location.match(/.\/.+/)) {
+      if (location.indexOf('/') !== 0) {
+        location = `/${location}`;
+      }
+
+      if ([0,1].indexOf(location.indexOf('u/')) !== -1) {
+        location = location.replace(/u\//, 'user/');
+      }
+    } else {
+      location = `/r/${location}`;
+    }
+
+    try {
+      result = yield tryLoad(location, options);
+    } catch (e) {
+      console.log(e, e.stack);
+    }
+
+    if (result) {
+      return this.redirect(location);
+    }
+
+    let locationQuery = this.query.location;
+
+    if (this.query.location.indexOf('/') !== -1) {
+      locationQuery = this.query.location.split('/')[1];
+    }
+
+    var query = querystring.stringify({
+      q: locationQuery,
     });
+
+    this.redirect(`/search?${query}`);
   });
 }
 

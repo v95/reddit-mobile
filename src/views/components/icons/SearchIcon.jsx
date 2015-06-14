@@ -1,8 +1,7 @@
 import React from 'react';
 import MyMath from '../../../lib/danehansen/utils/MyMath';
 import Point from '../../../lib/danehansen/geom/Point';
-import SVGFactory from '../../components/SVG';
-var SVG;
+import SVG from '../../components/SVG';
 
 const _MASK_SIZE = 11.4;
 const _EYE_CENTER = 7.10293;
@@ -14,19 +13,19 @@ class SearchIcon extends React.Component {
     this.state = {};
     this._look = this._look.bind(this);
     this._lookPause = this._lookPause.bind(this);
-    this._maskID = 'mask' + Math.random();
+    this._maskID = 'mask' + global.random();
   }
 
   render() {
     return (
-      <SVG fallbackIcon='icon-search'>
+      <SVG className='SearchIcon SVG-icon' fallbackIcon='icon-search'>
         <defs>
           <clipPath id={this._maskID}>
             <rect ref='mask' x={_EYE_CENTER - _MASK_SIZE / 2} y={_EYE_CENTER} width={_MASK_SIZE} height='0' fill='#000'/>
           </clipPath>
         </defs>
         <circle className='SVG-stroke' fill='none' strokeWidth='2.3' cx={_EYE_CENTER} cy={_EYE_CENTER} r='5.7'/>
-        <g ref='maskee' clip-path={'url(#' + this._maskID + ')'}>
+        <g ref='maskee' clipPath={'url(#' + this._maskID + ')'}>
           <circle className='SVG-stroke' fill='none' strokeWidth='1' cx={_EYE_CENTER} cy={_EYE_CENTER} r='3.5'/>
           <circle ref='pupil' className='SVG-fill' cx={_EYE_CENTER} cy={_EYE_CENTER} r='1.2'/>
         </g>
@@ -77,9 +76,4 @@ SearchIcon.defaultProps = {
   played: false,
 };
 
-function SearchIconFactory(app) {
-  SVG = SVGFactory(app);
-  return app.mutate('core/components/icons/SearchIcon', SearchIcon);
-}
-
-export default SearchIconFactory;
+export default SearchIcon;

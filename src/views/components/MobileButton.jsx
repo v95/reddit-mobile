@@ -4,17 +4,19 @@ import Utils from '../../lib/danehansen/utils/Utils';
 class MobileButton extends React.Component {
   constructor(props) {
     super(props);
+
     this.state = {
       hover: false,
       touch: false,
     };
+
     this._over = this._over.bind(this);
     this._out = this._out.bind(this);
   }
 
   renderChildren() {
     return React.Children.map(this.props.children, function(child) {
-      var type = child.type;
+      var type = child ? child.type : null;
       if (!type || typeof type === 'string') {
         return child;
       } else {
@@ -23,11 +25,24 @@ class MobileButton extends React.Component {
     }.bind(this));
   }
 
+  click() {
+    // a no-op to prevent errors
+  }
+
   render() {
     var move = this.props.move;
     var href = this.props.href;
+    var click = this.props.onClick;
+    var noRoute = this.props.noRoute || 'false';
 
-    var props = Utils.duplicate(this.props);
+    if (click) {
+      noRoute = 'true';
+    } else {
+      click = this.click;
+    }
+
+    var props = Object.assign({}, this.props);
+
     delete props.className;
     delete props.move;
     delete props.over;
@@ -46,17 +61,18 @@ class MobileButton extends React.Component {
         props.onMouseMove = move;
       }
     }
-    props.className = this.props.className + (this.state.hover ? ' hover' : '');
+    var className = this.props.className;
+    props.className = 'MobileButton' + (className ? (' ' + className) : '') + (this.state.hover ? ' hover' : '');
 
     if (href) {
       return (
-        <a {...props}>
+        <a {...props} onClick={ click } data-no-route={ noRoute }>
           { this.renderChildren() }
         </a>
       );
     } else {
       return (
-        <button {...props}>
+        <button {...props} onClick={ click }>
           { this.renderChildren() }
         </button>
       );
@@ -82,8 +98,4 @@ class MobileButton extends React.Component {
   }
 }
 
-function MobileButtonFactory(app) {
-  return app.mutate('core/components/MobileButton', MobileButton);
-}
-
-export default MobileButtonFactory;
+export default MobileButton;

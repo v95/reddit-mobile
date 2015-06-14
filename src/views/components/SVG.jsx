@@ -1,5 +1,6 @@
 import React from 'react';
 import Utils from '../../lib/danehansen/utils/Utils';
+import constants from '../../constants';
 
 const _NS = 'http://www.w3.org/2000/svg';
 
@@ -26,7 +27,7 @@ class SVG extends React.Component {
     } else {
       var fallbackIcon = this.props.fallbackIcon;
       if (fallbackIcon) {
-        return <span className={fallbackIcon}/>;
+        return <figure className={this.props.className + ' ' + fallbackIcon}/>;
       }
       var fallbackText = this.props.fallbackText;
       if (fallbackText) {
@@ -49,15 +50,11 @@ class SVG extends React.Component {
   }
 }
 
-SVG.ENABLED = ((typeof document === 'undefined') || (!!document.createElementNS && !!document.createElementNS(_NS, 'svg').createSVGRect));
+SVG.ENABLED = typeof document !== 'undefined' && (!!document.createElementNS && !!document.createElementNS(_NS, 'svg').createSVGRect);
 SVG.ICON_SIZE = 20;
 
 SVG.perc = function(num) {
   return num / SVG.ICON_SIZE * 100 + '%';
 };
 
-function SVGFactory(app) {
-  return app.mutate('core/components/SVG', SVG);
-}
-
-export default SVGFactory;
+export default SVG;

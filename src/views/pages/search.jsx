@@ -3,20 +3,11 @@ import q from 'q';
 import querystring from 'querystring';
 import constants from '../../constants';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
-
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
-
-import SearchBarFactory from '../components/SearchBar';
-var SearchBar;
-
-import SearchSortSubnavFactory from '../components/SearchSortSubnav';
-var SearchSortSubnav;
-
-import ListingListFactory from '../components/ListingList';
-var ListingList;
+import Loading from '../components/Loading';
+import TrackingPixel from '../components/TrackingPixel';
+import SearchBar from '../components/SearchBar';
+import SearchSortSubnav from '../components/SearchSortSubnav';
+import ListingList from '../components/ListingList';
 
 const _searchMinLength = 3;
 const _searchLimit = 25;
@@ -35,6 +26,11 @@ class SearchPage extends React.Component {
     };
   }
 
+  _onSubmitSearchForm(e) {
+    // Let the input change handle submission
+    e.preventDefault();
+  }
+
   _composeUrl(data) {
     var qs = { q: data.query };
     if (data.after) { qs.after = data.after; }
@@ -42,6 +38,7 @@ class SearchPage extends React.Component {
     if (data.page) { qs.page = data.page; }
     if (data.sort) { qs.sort = data.sort; }
     if (data.time) { qs.time = data.time; }
+    if (data.type) { qs.type = data.type; }
 
     return (data.subredditName ? `/r/${data.subredditName}` : '') +
       '/search?' + querystring.stringify(qs);
@@ -70,7 +67,7 @@ class SearchPage extends React.Component {
 
   _performSearch(props) {
     var ctx = this;
-    if (props.query) {
+    if (props.query && props.query.q) {
       let currentQueryKey = ctx._generateUniqueKey();
       ctx._lastQueryKey = currentQueryKey;
       SearchPage.populateData(props.api, props, true).done(function (data) {
@@ -107,20 +104,25 @@ class SearchPage extends React.Component {
   }
 
   handleShowMoreClick(e) {
-    var list = e.currentTarget.previousSibling;
-    list.className = list.className.replace('list-short-view', '');
+    var props = this.props;
+    var url = this._composeUrl({
+      query: props.query.q,
+      type: 'sr',
+    });
+    props.app.pushState(null, null, url);
+    props.app.render(url, false, props.app.modifyContext);
   }
 
   handleInputChanged(data) {
     var props = this.props;
     var value = data.value || '';
-    if (value !== props.query.q && (!value || value.length >= _searchMinLength)) {
+    if (value !== props.query.q && (value || value.length >= _searchMinLength)) {
       var url = this._composeUrl({
         query: value,
         subredditName: props.subredditName
       });
       props.app.pushState(null, null, url);
-      props.app.render(url, false);
+      props.app.render(url, false, props.app.modifyContext);
     }
   }
 
@@ -135,7 +137,7 @@ class SearchPage extends React.Component {
     var controls;
     var tracking;
 
-    if (!state.loaded) {
+    if (!state.loaded && props.query && props.query.q) {
       controls = (
         <Loading />
       );
@@ -145,7 +147,9 @@ class SearchPage extends React.Component {
 
       var subreddits = state.data.data.subreddits || [];
       var listings = state.data.data.links || [];
-      var noResults = listings.length === 0;
+      var noListResults = listings.length === 0;
+      var noSubResults = subreddits.length === 0;
+      var noResult = noSubResults && noListResults;
       var subredditResultsOnly = props.subredditName && props.query.q;
 
       var page = props.page || 0;
@@ -172,7 +176,7 @@ class SearchPage extends React.Component {
       }) : null;
 
       controls = [
-        <div className={ `container no-results text-right text-special ${noResults && props.query.q ? '' : 'hidden'}` } key="search-no-results">
+        <div className={ `container no-results text-right text-special ${noResult &&props.query.q ? '' : 'hidden'}` } key="search-no-results">
           Sorry, we couldn't find anything.
         </div>,
 
@@ -181,10 +185,10 @@ class SearchPage extends React.Component {
           <a href={ this._composeUrl({ query: props.query.q }) }>Search all of reddit?</a>
         </div>,
 
-        <div className={ `container summary-container ${noResults || (!noResults && subredditResultsOnly) ? 'hidden' : ''}` }
+        <div className={ `container summary-container ${noSubResults || (!noListResults && subredditResultsOnly) ? 'hidden' : ''}` }
              ref='summary' key="search-summary">
           <h4 className="text-center">Subreddits</h4>
-          <ul className="subreddits-list list-short-view">
+          <ul className="subreddits-list">
             {
               subreddits.map(function (subreddit, idx) {
                 return (
@@ -198,11 +202,11 @@ class SearchPage extends React.Component {
             }
           </ul>
 
-          <button className={ `btn-show-more btn-link pull-right ${subreddits.length > 3 ? '' : 'hidden'}` }
+          <button className={ `btn-show-more btn-link pull-right ${subreddits.length > 3 ? 'hidden' : ''}` }
                   title="Show more" onClick={this.handleShowMoreClick.bind(this)}>Show more</button>
         </div>,
 
-        <div className={ `container listings-container ${noResults ? 'hidden' : ''}` }
+        <div className={ `container listings-container ${noListResults ? 'hidden' : ''}` }
              ref="listings" key="search-listings">
 
           <h4 className="text-center">Posts</h4>
@@ -250,16 +254,24 @@ class SearchPage extends React.Component {
           loid={ this.props.loid }
           loidcreated={ this.props.loidcreated }
           compact={ this.props.compact }
-          />);
+          experiments={ this.props.experiments }
+        />);
     }
 
     return (
       <div className='search-main'>
         <div className="container search-bar-container">
-          <SearchBar
-            {...this.props}
-            inputChangedCallback={ this.handleInputChanged.bind(this) }
-          />
+          <form action='/search' method='GET' ref='searchForm' onSubmit={ this._onSubmitSearchForm }>
+            <div className='input-group vertical-spacing-top'>
+              <SearchBar
+                {...this.props}
+                inputChangedCallback={ this.handleInputChanged.bind(this) }
+              />
+              <span className='input-group-btn'>
+                <button className='btn btn-default' type='submit'>Search!</button>
+              </span>
+            </div>
+          </form>
         </div>
 
         { controls }
@@ -270,7 +282,8 @@ class SearchPage extends React.Component {
   }
 
   static isNoRecordsFound(data) {
-    return (((data || {}).data || {}).links || []).length === 0;
+    return (((data || {}).data || {}).links || []).length === 0 &&
+           (((data || {}).data || {}).subreddits || []).length === 0
   }
 
   static populateData(api, props, synchronous, useCache = true) {
@@ -283,6 +296,10 @@ class SearchPage extends React.Component {
       return defer.promise;
     }
 
+    if (!props.query.q) {
+      return defer.resolve();
+    }
+
     var options = api.buildOptions(props.apiOptions);
 
     options.query.q = props.query.q;
@@ -292,9 +309,9 @@ class SearchPage extends React.Component {
     options.query.subreddit = props.subredditName;
     options.query.sort = props.sort;
     options.query.t = props.time;
-    options.query.type = ['sr','link'];
     options.query.include_facets = 'off';
     options.useCache = useCache;
+    options.query.type = props.query.type || ['sr','link'];
 
     // Initialized with data already.
     if (useCache && (props.data || {}).data) {
@@ -304,9 +321,11 @@ class SearchPage extends React.Component {
       return defer.promise;
     }
 
-    api.search.get(options).done(function (data) {
+    api.search.get(options).then(function (data) {
       data = data || {};
       defer.resolve(data);
+    }, function(error) {
+      defer.reject(error);
     });
 
     return defer.promise;
@@ -314,15 +333,4 @@ class SearchPage extends React.Component {
 
 }
 
-function SearchPageFactory(app) {
-  Loading = LoadingFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-  SearchBar = SearchBarFactory(app);
-  SearchSortSubnav = SearchSortSubnavFactory(app);
-  ListingList = ListingListFactory(app);
-
-  return app.mutate('core/pages/search', SearchPage);
-}
-
-export default SearchPageFactory;
-
+export default SearchPage;

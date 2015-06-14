@@ -1,32 +1,27 @@
 import React from 'react';
 import constants from '../../constants';
 
-import SeashellsDropdownFactory from '../components/SeashellsDropdown';
-var SeashellsDropdown;
+import { models } from 'snoode';
 
-import UpvoteIconFactory from '../components/icons/UpvoteIcon';
-var UpvoteIcon;
-
-import DownvoteIconFactory from '../components/icons/DownvoteIcon';
-var DownvoteIcon;
-
-import CommentIconFactory from '../components/icons/CommentIcon';
-var CommentIcon;
-
-import MobileButtonFactory from '../components/MobileButton';
-var MobileButton;
-
-import SnooIconFactory from '../components/icons/SnooIcon';
-var SnooIcon;
-
-import InfoIconFactory from '../components/icons/InfoIcon';
-var InfoIcon;
+import SeashellsDropdown from '../components/SeashellsDropdown';
+import CommentIcon from '../components/icons/CommentIcon';
+import MobileButton from '../components/MobileButton';
+import SnooIcon from '../components/icons/SnooIcon';
+import InfoIcon from '../components/icons/InfoIcon';
+import FlagIcon from '../components/icons/FlagIcon';
+import TextIcon from '../components/icons/TextIcon';
+import SaveIcon from '../components/icons/SaveIcon';
+import SettingsIcon from '../components/icons/SettingsIcon';
+import CheckmarkIcon from '../components/icons/CheckmarkIcon';
 
 class ListingDropdown extends React.Component {
   constructor(props) {
     super(props);
 
-    this.state = {};
+    this.state = {
+      saved: props.listing.saved,
+      hidden: props.listing.hidden,
+    };
 
     var likes = props.listing.likes;
 
@@ -38,44 +33,97 @@ class ListingDropdown extends React.Component {
       this.state.localScore = 0;
     }
 
-    this._onVote = this._onVote.bind(this);
-    this._onUpvoteClick = this._onUpvoteClick.bind(this);
-    this._onDownvoteClick = this._onDownvoteClick.bind(this);
+    this._onReportClick = this._onReportClick.bind(this);
+    this._onReportSubmit = this._onReportSubmit.bind(this);
+    this._onReport = this._onReport.bind(this);
+    this._cancelBubble = this._cancelBubble.bind(this);
+
+    this._onHideClick = this._onHideClick.bind(this);
+    this._onSaveClick = this._onSaveClick.bind(this);
   }
 
   render() {
-    if (this.state.localScore > 0) {
-      var voteClass = ' upvoted';
-    } else if (this.state.localScore < 0) {
-      voteClass = ' downvoted';
+    var props = this.props;
+    var listing = props.listing;
+
+    var reportLink;
+    var reportForm;
+
+    var hideLink;
+    var saveLink;
+
+    if (props.token) {
+      if (this.state.reportFormOpen) {
+        reportForm = (
+          <form action={`/report/${ props.listing.name }`} method='POST' onSubmit={ this._onReportSubmit } onClick={ this._cancelBubble }>
+            <div className='input-group'>
+              <input type='text' className='form-control' placeholder='reason' ref='otherReason' />
+              <span className='input-group-btn'>
+                <button className='btn btn-default' type='submit'>
+                  <span className='glyphicon glyphicon-chevron-right'></span>
+                </button>
+              </span>
+            </div>
+          </form>
+        );
+      }
+
+      reportLink = (
+        <li className='Dropdown-li'>
+          <MobileButton className='Dropdown-button' onClick={ this._onReportClick }>
+            <FlagIcon/>
+            <span className='Dropdown-text'>Report this</span>
+          </MobileButton>
+          { reportForm }
+        </li>
+      );
+
+      var saved = this.state.saved;
+      var hidden = this.state.hidden;
+
+      saveLink = (
+        <li className='Dropdown-li'>
+          <MobileButton className='Dropdown-button' onClick={ this._onSaveClick }>
+            <SaveIcon altered={ saved }/>
+            <span className='Dropdown-text'>{ saved ? 'Saved' : 'Save' }</span>
+          </MobileButton>
+        </li>
+      );
+
+      if (this.props.showHide) {
+        hideLink = (
+          <li className='Dropdown-li'>
+            <MobileButton className='Dropdown-button' onClick={ this._onHideClick }>
+              <SettingsIcon altered={ hidden }/>
+              <span className='Dropdown-text'>{ hidden ? 'Hidden' : 'Hide' }</span>
+            </MobileButton>
+          </li>
+        );
+      }
     }
-    var listing = this.props.listing;
+
+    var permalink;
+
+    if (props.permalink) {
+      permalink = (
+        <li className='Dropdown-li'>
+          <MobileButton className='Dropdown-button' href={ props.permalink }>
+            <TextIcon />
+            <span className='Dropdown-text'>Permalink</span>
+          </MobileButton>
+        </li>
+      );
+    }
+
     return (
-      <SeashellsDropdown app={ this.props.app } right={ true }>
-        <li className='Dropdown-li'>
-          <form className='Dropdown-form' action={'/vote/'+listing.name} method='post'>
-            <input type='hidden' name='direction' value='1'/>
-            <MobileButton className={ `Dropdown-button ${voteClass || ''}` } type='submit' onClick={this._onUpvoteClick}>
-              <UpvoteIcon altered={this.state.localScore > 0}/>
-              <span className='Dropdown-text'>Upvote</span>
-            </MobileButton>
-          </form>
-        </li>
-        <li className='Dropdown-li'>
-          <form className='Dropdown-form' action={'/vote/'+listing.name} method='post'>
-            <input type='hidden' name='direction' value='-1'/>
-            <MobileButton className={ `Dropdown-button ${voteClass || ''}` } type='submit' onClick={this._onDownvoteClick}>
-              <DownvoteIcon altered={this.state.localScore < 0}/>
-              <span className='Dropdown-text'>Downvote</span>
-            </MobileButton>
-          </form>
-        </li>
+      <SeashellsDropdown app={ props.app } right={ true }>
         <li className='Dropdown-li'>
           <MobileButton className='Dropdown-button' href={listing.permalink}>
             <CommentIcon/>
             <span className='Dropdown-text'>View comments</span>
           </MobileButton>
         </li>
+        { permalink }
         <li className='Dropdown-li'>
           <MobileButton className='Dropdown-button' href={ '/r/' + listing.subreddit }>
             <SnooIcon/>
@@ -88,43 +136,104 @@ class ListingDropdown extends React.Component {
             <span className='Dropdown-text'>About { listing.author }</span>
           </MobileButton>
         </li>
+        { saveLink }
+        { hideLink }
+        { reportLink }
       </SeashellsDropdown>
     );
   }
 
-  componentDidMount() {
-    this.props.app.on(constants.VOTE+':'+this.props.listing.id, this._onVote);
+  _onReportClick(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    this.setState({
+      reportFormOpen: true,
+    });
   }
 
-  componentWillUnmount() {
-    this.props.app.off(constants.VOTE+':'+this.props.listing.id, this._onVote);
+  _onSaveClick(e) {
+    e.preventDefault();
+
+    var options = this.props.app.api.buildOptions(this.props.apiOptions);
+
+    options = Object.assign(options, {
+      id: this.props.listing.name,
+    });
+
+    if (this.state.saved) {
+      this.props.app.api.saved.delete(options).done(() => { });
+      this.setState({ saved: false });
+    } else {
+      this.props.app.api.saved.post(options).done(() => { });
+      this.setState({ saved: true });
+    }
+
+    if (this.props.onSave) {
+      this.props.onSave();
+    }
   }
 
-  _onUpvoteClick(evt) {
-    evt.preventDefault();
-    this.props.app.emit(constants.VOTE+':'+this.props.listing.id, 1);
+  _onHideClick(e) {
+    e.preventDefault();
+    // api call
+    this.props.app.emit('hide', this.props.listing.id);
+    var options = this.props.app.api.buildOptions(this.props.apiOptions);
+
+    options = Object.assign(options, {
+      id: this.props.listing.name,
+    });
+
+    if (this.state.hidden) {
+      this.props.app.api.hidden.delete(options).done(() => { });
+      this.setState({ hidden: false });
+    } else {
+      this.props.app.api.hidden.post(options).done(() => { });
+      this.setState({ hidden: true });
+    }
+
+    if (this.props.onHide) {
+      this.props.onHide();
+    }
   }
 
-  _onDownvoteClick(evt) {
-    evt.preventDefault();
-    this.props.app.emit(constants.VOTE+':'+this.props.listing.id, -1);
+  _onReportSubmit(e) {
+    e.preventDefault();
+
+    var id = this.props.listing.name;
+    var textEl = this.refs.otherReason.getDOMNode();
+
+    var report = new models.Report({
+      thing_id: id,
+      reason: 'other',
+      other_reason: textEl.value.trim(),
+    });
+
+    var options = this.props.app.api.buildOptions(this.props.apiOptions);
+
+    options = Object.assign(options, {
+      model: report,
+    });
+
+    this.props.app.api.reports.post(options).done((comment) => {
+      this._onReport();
+    });
+
+    this.props.app.emit('report', this.props.listing.id);
   }
 
-  _onVote(dir) {
-    var localScore = Math.min(1, Math.max(-1, dir - this.state.localScore));
-    this.setState({localScore: localScore});
+  _onReport() {
+    this.setState({
+      reported: true,
+    });
+
+    if (this.props.onReport) {
+      this.props.onReport();
+    }
+  }
+
+  _cancelBubble(e) {
+    e.stopPropagation();
   }
 }
 
-function ListingDropdownFactory(app) {
-  SeashellsDropdown = SeashellsDropdownFactory(app);
-  UpvoteIcon = UpvoteIconFactory(app);
-  DownvoteIcon = DownvoteIconFactory(app);
-  InfoIcon = InfoIconFactory(app);
-  CommentIcon = CommentIconFactory(app);
-  SnooIcon = SnooIconFactory(app);
-  MobileButton = MobileButtonFactory(app);
-  return app.mutate('core/components/ListingDropdown', ListingDropdown);
-}
-
-export default ListingDropdownFactory;
+export default ListingDropdown;

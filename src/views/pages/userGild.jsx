@@ -3,14 +3,9 @@ import q from 'q';
 import querystring from 'querystring';
 import constants from '../../constants';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
-
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
-
-import TopSubnavFactory from '../components/TopSubnav';
-var TopSubnav;
+import Loading from '../components/Loading';
+import TrackingPixel from '../components/TrackingPixel';
+import TopSubnav from '../components/TopSubnav';
 
 class UserGildPage extends React.Component {
   constructor(props) {
@@ -64,12 +59,18 @@ class UserGildPage extends React.Component {
           loid={ this.props.loid }
           loidcreated={ this.props.loidcreated }
           compact={ this.props.compact }
+          experiments={ this.props.experiments }
         />);
     }
 
     return (
       <div className="user-page user-gild">
-        <TopSubnav app={ app } user={ user } hideSort={ true } baseUrl={ this.props.url } loginPath={ this.props.loginPath } />
+        <TopSubnav
+          app={ app }
+          user={ user }
+          hideSort={ true }
+          baseUrl={ this.props.url }
+          loginPath={ this.props.loginPath } />
 
         { loading }
 
@@ -120,12 +121,4 @@ class UserGildPage extends React.Component {
   }
 }
 
-function UserGildPageFactory(app) {
-  Loading = LoadingFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-  TopSubnav = TopSubnavFactory(app);
-
-  return app.mutate('core/pages/userGild', UserGildPage);
-}
-
-export default UserGildPageFactory;
+export default UserGildPage;

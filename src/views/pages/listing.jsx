@@ -1,32 +1,24 @@
 import React from 'react';
 import q from 'q';
+import querystring from 'querystring';
 import commentsMap from '../../lib/commentsMap';
 import constants from '../../constants';
+import Loading from '../components/Loading';
+import TrackingPixel from '../components/TrackingPixel';
+import Listing from '../components/Listing';
+import CommentBox from '../components/CommentBox';
+import Comment from '../components/Comment';
+import TopSubnav from '../components/TopSubnav';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
-
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
-
-import ListingFactory from '../components/Listing';
-var Listing;
-
-import CommentBoxFactory from '../components/CommentBox';
-var CommentBox;
-
-import CommentFactory from '../components/Comment';
-var Comment;
-
-import TopSubnavFactory from '../components/TopSubnav';
-var TopSubnav;
+import GoogleCarouselMetadata from '../components/GoogleCarouselMetadata';
 
 class ListingPage extends React.Component {
   constructor(props) {
     super(props);
-
+    this.props = props;
     this.state = {
       data: props.data || {},
+      linkComment: '',
     };
 
     this.state.loaded = this.state.data && this.state.data.data;
@@ -34,9 +26,16 @@ class ListingPage extends React.Component {
 
   componentDidMount() {
     ListingPage.populateData(this.props.api, this.props, true).done((function(data) {
+      var name = data.data.listing.name;
+      var linkComment = '';
+      if (localStorage.getItem(name)) {
+        linkComment = window.localStorage.getItem(name);
+      }
+
       this.setState({
         data: data,
         loaded: true,
+        linkComment: linkComment,
       });
     }).bind(this));
 
@@ -55,7 +54,7 @@ class ListingPage extends React.Component {
     this.state.data.data.comments.splice(0, 0, comment);
 
     this.setState({
-      data: this.props.data,
+      data: this.state.data,
     });
   }
 
@@ -85,9 +84,25 @@ class ListingPage extends React.Component {
     var listingElement;
     var commentBoxElement;
 
-    var loginPath = props.loginPath;
+    var loginPath = props.loginPath + '/?' + querystring.stringify({
+      originalUrl: props.url,
+    });
     var apiOptions = props.apiOptions;
+    var singleComment;
+    var permalink;
 
+    if (listing) {
+      permalink = listing.cleanPermalink;
+    }
+
+    var keys = [];
+    if (global.localStorage) {
+      for (var key in localStorage) {
+        keys.push(key);
+      }
+    }
+    var savedCommentKeys = keys;
+    var savedReply = this.state.linkComment;
     if (!loading) {
       listingElement = (
         <Listing
@@ -116,8 +131,20 @@ class ListingPage extends React.Component {
           csrf={ props.csrf }
           onSubmit={ this.onNewComment.bind(this) }
           loginPath={ loginPath }
+          savedReply={ savedReply }
         />
       );
+
+      if (props.commentId) {
+        singleComment = (
+          <div className='alert alert-warning vertical-spacing vertical-spacing-top'>
+            <p>
+              <span>You are viewing a single comment's thread. </span>
+              <a href={permalink}>View the rest of the comments</a>
+            </p>
+          </div>
+        );
+      }
     }
 
     if (this.state.data.meta && props.renderTracking) {
@@ -128,22 +155,44 @@ class ListingPage extends React.Component {
           loidcreated={ props.loidcreated }
           user={ props.user }
           compact={ props.compact }
+          experiments={ props.experiments }
         />);
     }
 
     return (
       <div className='listing-main'>
         { loading }
-        <TopSubnav app={ app } user={ user } sort={ sort } list='comments' baseUrl={ props.url } loginPath={ props.loginPath } />
+
+        <GoogleCarouselMetadata
+          app={ props.app }
+          url={ props.url }
+          origin={ props.origin }
+          show={ props.isGoogleCrawler }
+          listing={listing}
+          comments={comments}
+        />
+
+        <TopSubnav
+          app={ app }
+          user={ user }
+          sort={ sort }
+          list='comments'
+          baseUrl={ props.url }
+          loginPath={ loginPath }
+        />
         <div className='container' key='container'>
           { listingElement }
           { commentBoxElement }
+          { singleComment }
           {
             comments.map(function(comment, i) {
               if (comment) {
-                comment = commentsMap(comment, null, author, 4, 0);
+                comment = commentsMap(comment, null, author, 4, 0, 0, false, savedCommentKeys);
                 return (
                   <Comment
+                    subredditName={ props.subredditName }
+                    permalinkBase={ permalink }
+                    highlight={ props.commentId }
                     app={app}
                     comment={comment}
                     index={i}
@@ -192,6 +241,12 @@ class ListingPage extends React.Component {
     }
 
     options.linkId = props.listingId;
+
+    if (props.commentId) {
+      options.query.comment = props.commentId;
+      options.query.context = props.query.context || 1;
+    }
+
     options.sort = props.sort || 'confidence';
 
     // Initialized with data already.
@@ -202,27 +257,18 @@ class ListingPage extends React.Component {
       return defer.promise;
     }
 
-    api.comments.get(options).done(function(data){
+    api.comments.get(options).then(function(data){
       data.data.comments = data.data.comments.map(function(comment){
         return mapComment(comment);
       });
 
       defer.resolve(data);
+    }, function(error) {
+      defer.reject(error);
     });
 
     return defer.promise;
   }
 }
 
-function ListingPageFactory(app) {
-  Loading = LoadingFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-  Listing = ListingFactory(app);
-  Comment = CommentFactory(app);
-  CommentBox = CommentBoxFactory(app);
-  TopSubnav = TopSubnavFactory(app);
-
-  return app.mutate('core/pages/listing', ListingPage);
-}
-
-export default ListingPageFactory;
+export default ListingPage;

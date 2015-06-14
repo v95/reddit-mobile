@@ -1,8 +1,7 @@
 import React from 'react';
 import DrawSVGPlugin from '../../../lib/greensock/plugins/DrawSVGPlugin.min.js';
 
-import SVGFactory from '../../components/SVG';
-var SVG;
+import SVG from '../../components/SVG';
 
 class RIcon extends React.Component {
   constructor(props) {
@@ -37,22 +36,26 @@ class RIcon extends React.Component {
   }
 
   tweenOn(callback) {
-    this.setState({outline:true});
-    var timeline = new TimelineLite({onComplete:callback});
-    var r = this.refs.r.getDOMNode();
-    timeline.add(TweenLite.from(r, 1, {drawSVG:0, ease:Cubic.easeInOut}));
+    if (SVG.ENABLED) {
+      this.setState({outline:true});
+      var timeline = new TimelineLite({onComplete:callback});
+      var r = this.refs.r.getDOMNode();
+      timeline.add(TweenLite.from(r, 1, {drawSVG:0, ease:Cubic.easeInOut}));
 
-    timeline.add(TweenLite.from(r, 0.5, {fill:'transparent'}));
-    timeline.add(TweenLite.to(r, 0.5, {strokeWidth:0, autoRound:false}), 1);
+      timeline.add(TweenLite.from(r, 0.5, {fill:'transparent'}));
+      timeline.add(TweenLite.to(r, 0.5, {strokeWidth:0, autoRound:false}), 1);
+    }
   }
 
   tweenOff(callback) {
-    var timeline = new TimelineLite({onComplete:callback});
-    var r = this.refs.r.getDOMNode();
-    timeline.add(TweenLite.to(r, 0.5, {fill:'transparent'}));
-    timeline.add(TweenLite.to(r, 0.5, {strokeWidth:0.5, autoRound:false}), 0);
+    if (SVG.ENABLED) {
+      var timeline = new TimelineLite({onComplete:callback});
+      var r = this.refs.r.getDOMNode();
+      timeline.add(TweenLite.to(r, 0.5, {fill:'transparent'}));
+      timeline.add(TweenLite.to(r, 0.5, {strokeWidth:0.5, autoRound:false}), 0);
 
-    timeline.add(TweenLite.to(r, 1, {drawSVG:0, ease:Cubic.easeInOut}));
+      timeline.add(TweenLite.to(r, 1, {drawSVG:0, ease:Cubic.easeInOut}));
+    }
   }
 }
 
@@ -60,9 +63,4 @@ RIcon.defaultProps = {
   played: false,
 };
 
-function RIconFactory(app) {
-  SVG = SVGFactory(app);
-  return app.mutate('core/components/icons/RIcon', RIcon);
-}
-
-export default RIconFactory;
+export default RIcon;

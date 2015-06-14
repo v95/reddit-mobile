@@ -18,13 +18,13 @@ import mixin from './app-mixin';
 
 var App = mixin(ServerReactApp);
 
-// Plugins
-import plugins from './plugins';
-
 // The core
+import constants from './constants';
 import oauthRoutes from './oauth';
 import serverRoutes from './serverRoutes';
 import routes from './routes';
+
+import randomBySeed from './lib/randomBySeed'
 
 function randomString(len) {
   var id = [];
@@ -37,26 +37,78 @@ function randomString(len) {
   return id.join('');
 }
 
+function getBucket(loid, choices, controlSize) {
+  return parseInt(loid.substring(loid.length - 4), 36) % 100;
+}
+
 function formatProps (props = {}) {
   delete props.apiOptions;
   return props;
 }
 
+function setExperiment(app, ctx, id, value) {
+  let cookieOptions = {
+    secure: app.getConfig('https'),
+    secureProxy: app.getConfig('httpsProxy'),
+    httpOnly: false,
+    maxAge: 1000 * 60 * 60 * 24 * 365 * 2,
+  };
+
+  ctx.cookies.set(id, value, cookieOptions);
+  ctx.experiments.push({ id, value });
+}
+
+function skipAuth(app, url) {
+  return (
+    url.indexOf('/logout') === 0 ||
+    url.indexOf('/login') === 0 ||
+    url.indexOf('/register') === 0 ||
+    url.indexOf('/oauth2') === 0 ||
+    url.indexOf('/timings') === 0
+  );
+}
+
+function setCompact(ctx, app) {
+  if (ctx.compact !== undefined) {
+    return;
+  }
+
+  let compact = (ctx.cookies.get('compact') || '').toString() === 'true';
+
+  let cookieOptions = {
+    secure: app.getConfig('https'),
+    secureProxy: app.getConfig('httpsProxy'),
+    httpOnly: false,
+    maxAge: 1000 * 60 * 60 * 24 * 365 * 2,
+  };
+
+  let ua = ctx.headers['user-agent'];
+
+  // Set compact for opera mini
+  if (ua.match(/(opera mini|android 2)/i)) {
+    compact = true;
+  }
+
+  if (ctx.query.compact === 'on') {
+    compact = true;
+  } else if (ctx.query.compact === 'off') {
+    compact = false;
+  }
+
+  ctx.cookies.set('compact', compact, cookieOptions);
+  ctx.compact = compact;
+}
+
 class Server {
   constructor (config) {
     // Intantiate a new App instance (React middleware)
+    config.seed = Math.random();
+    config.staticMarkup = true;
+    config.experiments = config.experiments || [];
+
     var app = new App(config);
 
     app.config.renderTracking = true;
-
-    var plugin, p;
-
-    if (plugins) {
-      for (p in plugins) {
-        plugin = plugins[p];
-        plugin.register(app);
-      }
-    }
 
     oauthRoutes(app);
     serverRoutes(app);
@@ -71,6 +123,10 @@ class Server {
         secureProxy: config.httpsProxy
     };
 
+    // Runs after everything else, making sure private
+    // responses don't get cached.
+    server.use(this.cacheGuard());
+
     server.use(session(server, sessionOptions));
     server.use(compress());
     server.use(bodyParser());
@@ -81,10 +137,12 @@ class Server {
     // Set up static routes for built (and unbuilt, static) files
     server.use(koaStatic(__dirname + '/../build'));
 
+    server.use(this.checkToken(app));
+    server.use(this.convertSession(app));
+    server.use(this.setLOID(app));
+    server.use(this.setExperiments(app));
     server.use(this.modifyRequest(app));
     server.use(this.setHeaders(app));
-    server.use(this.setLOID(app));
-    server.use(this.checkToken(app));
 
     server.use(App.serverRender(app, formatProps));
 
@@ -110,12 +168,25 @@ class Server {
   setLOID (app) {
     return function * (next) {
       if (this.cookies.get('loid')) {
+        this.loid = this.cookies.get('loid');
+        this.loidcreated = this.cookies.get('loidcreated');
+
+        // If user came from desktop, and is a new user, treat them as new for
+        // experiments.
+        if (this.query.ref_source === 'desktop') {
+          let created = new Date(this.loidcreated);
+
+          if (created.setMinutes(created.getMinutes() - 5) < Date.now()) {
+            this.newUser = true;
+          }
+        }
+
         yield next;
         return;
       }
 
-      var loggedOutId = randomString(18);
-      var created = (new Date()).toISOString();
+      let loggedOutId = randomString(18);
+      let created = (new Date()).toISOString();
 
       var cookieOptions = {
         secure: app.getConfig('https'),
@@ -124,10 +195,87 @@ class Server {
         maxAge: 1000 * 60 * 60 * 24 * 365 * 2,
       }
 
+      this.loid = loggedOutId;
+      this.loidcreated = created;
+
+      this.newUser = true;
       this.cookies.set('loid', loggedOutId, cookieOptions);
       this.cookies.set('loidcreated', created, cookieOptions);
 
       yield next;
+    }
+  }
+
+  setExperiments (app) {
+    return function * (next) {
+      if (!app.config.experiments) {
+        yield next;
+        return;
+      }
+
+      let bucket = getBucket(this.loid);
+      this.experiments = [];
+
+      if (app.config.experiments.fiftyfifty &&
+          this.newUser &&
+          !this.cookies.get('fiftyfifty')) {
+        // divide by two, because there are two possible buckets, plus control
+        let bucketSize = parseInt(app.config.experiments.fiftyfifty) / 2;
+
+        if (bucket < bucketSize) {
+          setExperiment(app, this, 'fiftyfifty', 'A');
+        } else if (bucket < bucketSize * 2) {
+          setExperiment(app, this, 'fiftyfifty', 'B');
+        } else  {
+          setExperiment(app, this, 'fiftyfifty', 'control');
+        }
+      } else if (this.cookies.get('fiftyfifty')) {
+        this.experiments.push({
+          id: 'fiftyfifty',
+          value: this.cookies.get('fiftyfifty'),
+        });
+      }
+
+      let compactCookieOptions = {
+        secure: app.getConfig('https'),
+        secureProxy: app.getConfig('httpsProxy'),
+        httpOnly: false,
+        maxAge: 1000 * 60 * 60 * 24 * 365 * 2,
+      };
+
+      if (app.config.experiments.compactTest &&
+          !this.cookies.get('compact') &&
+          !this.cookies.get('compactTest')) {
+        // divide by two, because there are two possible buckets, plus control
+        let bucketSize = parseInt(app.config.experiments.compactTest) / 2;
+
+        if (bucket < bucketSize) {
+          this.compact = true;
+          this.cookies.set('compact', 'true', compactCookieOptions);
+          setExperiment(app, this, 'compactTest', 'compact');
+        } else if (bucket < bucketSize * 2) {
+          this.compact = false;
+          this.cookies.set('compact', 'false', compactCookieOptions);
+          setExperiment(app, this, 'compactTest', 'list');
+        } else {
+          this.compact = false;
+          setExperiment(app, this, 'compactTest', 'control');
+        }
+      } else if (this.cookies.get('compactTest')) {
+        if (!app.config.experiments.compactTest) {
+          this.cookies.set('compactTest');
+        } else {
+          this.experiments.push({
+            id: 'compactTest',
+            value: this.cookies.get('compactTest'),
+          });
+        }
+      } else if (!this.cookies.get('compact')) {
+        this.cookies.set('compact', 'false', compactCookieOptions);
+      }
+
+      yield next;
+      return;
     }
   }
 
@@ -141,50 +289,94 @@ class Server {
         this.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
       }
 
+      // Don't cache if logged-in
       if (this.cookies.get('token')) {
-        this.set('Cache-control', 'no-cache');
+        this.set('Cache-Control', 'private, no-cache');
       }
 
       yield next;
     }
   }
 
+  cacheGuard (app) {
+    return function * (next) {
+
+      yield next;
+
+      var cookieHeaders = this.res.getHeader('Set-Cookie') || [];
+      var setUncacheableCookie = false;
+      cookieHeaders.forEach(c => {
+        c = c.split(/=/)[0];
+        // this isn't a cacheable cookie or its signature cookie?
+        if (!constants.CACHEABLE_COOKIES.find(x => (x == c || x + '.sig' == c))) {
+          // the response can't be cached, then
+          this.set('Cache-Control', 'private, no-cache');
+        }
+      });
+    }
+  }
+
+  
+
   modifyRequest (app) {
     return function * (next) {
-      var compact = this.cookies.get('compact') === 'true' ||
-                    this.cookies.get('compact') === true;
-
-      var cookieOptions = {
-        secure: app.getConfig('https'),
-        secureProxy: app.getConfig('httpsProxy'),
-        httpOnly: false,
-        maxAge: 1000 * 60 * 60 * 24 * 365 * 2,
-      }
-
-      if (this.query.compact === 'on') {
-        this.cookies.set('compact', true, cookieOptions);
-        compact = true;
-      } else if (this.query.compact === 'off') {
-        this.cookies.set('compact', false, cookieOptions);
-        compact = false;
-      }
+      setCompact(this, app);
 
       this.showBetaBanner = !this.cookies.get('hideBetaBanner');
+
+      global.random = randomBySeed(app.config.seed);
+      this.staticMarkup = true;
 
       this.body = this.request.body;
       this.userAgent = this.headers['user-agent'];
 
-      this.token = this.cookies.get('token');
-      this.tokenExpires = this.cookies.get('tokenExpires');
+      if (!this.token) {
+        this.token = this.cookies.get('token');
+        this.tokenExpires = this.cookies.get('tokenExpires');
 
-      this.compact = compact;
+        if (!this.loid) {
+          this.loid = this.cookies.get('loid');
+          this.loidcreated = this.cookies.get('loidcreated');
+        }
+      }
 
       this.renderSynchronous = true;
       this.useCache = false;
 
-      if (!this.token) {
-        this.loid = this.cookies.get('loid');
-        this.loidcreated = this.cookies.get('loidcreated');
+      this.isGoogleCrawler = this.userAgent.toLowerCase().indexOf('googlebot') > -1;
+
+      yield next;
+    }
+  }
+
+  convertSession(app) {
+    return function * (next) {
+      if (skipAuth(app, this.url)) {
+        yield next;
+        return;
+      }
+
+      let session = this.cookies.get('reddit_session');
+
+      if (!this.token &&
+          !this.cookies.get('token') &&
+          session) {
+
+        try {
+          var token = yield app.convertSession(this, session);
+
+          this.token = token.token.access_token;
+          this.tokenExpires = token.token.expires_at.toString();
+
+          app.setTokenCookie(this, token);
+        } catch (e) {
+          // server errored, continue as logged out for now
+          if (app.config.debug) {
+            console.log(e, e.stack);
+          }
+        }
+
+        yield next;
       }
 
       yield next;
@@ -193,10 +385,16 @@ class Server {
 
   checkToken (app) {
     return function * (next) {
+
       var now = new Date();
       var expires = this.cookies.get('tokenExpires');
 
       if (!expires) {
+        yield next;
+        return;
+      }
+
+      if (skipAuth(app, this.url)) {
         yield next;
         return;
       }
@@ -208,8 +406,16 @@ class Server {
 
         try {
           var token = yield app.refreshToken(this, rToken);
+
+          this.token = token.token.access_token;
+          this.tokenExpires = token.token.expires_at.toString();
+
           app.setTokenCookie(this, token);
         } catch (e) {
+          if (app.config.debug) {
+            console.log(e, e.stack);
+          }
+
           this.cookies.set('tokenExpires');
           this.cookies.set('token');
           this.cookies.set('refreshToken');

@@ -1,20 +1,16 @@
 import React from 'react';
+import querystring from 'querystring';
+
+import cookies from 'cookies-js';
+
 import constants from '../../constants';
 
-import MobileButtonFactory from '../components/MobileButton';
-var MobileButton;
-
-import MailIconFactory from '../components/icons/MailIcon';
-var MailIcon;
-
-import SettingsIconFactory from '../components/icons/SettingsIcon';
-var SettingsIcon;
-
-import SnooIconFactory from '../components/icons/SnooIcon';
-var SnooIcon;
-
-import TwirlyIconFactory from '../components/icons/TwirlyIcon';
-var TwirlyIcon;
+import MobileButton from '../components/MobileButton';
+import MailIcon from '../components/icons/MailIcon';
+import SettingsIcon from '../components/icons/SettingsIcon';
+import SnooIcon from '../components/icons/SnooIcon';
+import TwirlyIcon from '../components/icons/TwirlyIcon';
+import SaveIcon from '../components/icons/SaveIcon';
 
 class SideNav extends React.Component {
   constructor(props) {
@@ -31,6 +27,10 @@ class SideNav extends React.Component {
     this._close = this._close.bind(this);
     this._onViewClick = this._onViewClick.bind(this);
     this._onScroll = this._onScroll.bind(this);
+
+    this._desktopSite = this._desktopSite.bind(this);
+
+    this._goto = this._goto.bind(this);
   }
 
   componentDidMount() {
@@ -41,6 +41,30 @@ class SideNav extends React.Component {
   componentWillUnmount() {
     this.props.app.off(constants.TOP_NAV_HAMBURGER_CLICK, this._toggle);
     this.props.app.off('route:start', this._close);
+  }
+
+  _desktopSite(e) {
+    e.preventDefault();
+    var url = this.props.url;
+    var query = '';
+
+    if (Object.keys(this.props.query).length > 0) {
+      query = '?' + querystring.stringify(this.props.query || {});
+    }
+
+    this.props.app.emit('route:desktop', `${url}${query}`);
+  }
+
+  _goto(e) {
+    e.preventDefault();
+
+    let textEl = this.refs.location.getDOMNode();
+    let location = textEl.value.trim();
+
+    let query = querystring.stringify({ location });
+
+    let url = `/goto?${query}`;
+    this.props.app.redirect(url);
   }
 
   render() {
@@ -54,20 +78,41 @@ class SideNav extends React.Component {
     var twirly = this.state.twirly;
     var isAbout = twirly === 'about';
     var isSubreddits = twirly === 'subreddits';
+    var isUser = twirly === 'user';
 
     if (user) {
       loginLink = (
-        <li>
-          <MobileButton className='SideNav-button' href={ '/u/' + user.name }>
-            <SnooIcon/>
+        <li className={'SideNav-dropdown' + (isUser ? ' opened' : '')}>
+          <MobileButton className='SideNav-button' onClick={this._onTwirlyClick.bind(this, 'user')}>
+            <TwirlyIcon altered={isUser}/>
             <span className='SideNav-text'>{ user.name }</span>
           </MobileButton>
+          <ul className='SideNav-ul list-unstyled'>
+            <li>
+              <MobileButton className='SideNav-button' href={ `/u/${user.name}` }>
+                <SnooIcon/>
+                <span className='SideNav-text'>My Profile</span>
+              </MobileButton>
+            </li>
+            <li>
+              <MobileButton className='SideNav-button' href={ `/u/${user.name}/saved` }>
+                <SaveIcon/>
+                <span className='SideNav-text'>Saved</span>
+              </MobileButton>
+            </li>
+            <li>
+              <MobileButton className='SideNav-button' href={ `/u/${user.name}/hidden` }>
+                <SettingsIcon/>
+                <span className='SideNav-text'>Hidden</span>
+              </MobileButton>
+            </li>
+          </ul>
         </li>
       );
 
       logoutLink = (
         <li>
-          <MobileButton className='SideNav-button' href='/logout' data-no-route='true'>
+          <MobileButton className='SideNav-button' href='/logout' noRoute='true'>
             <SnooIcon/>
             <span className='SideNav-text'>Log out</span>
           </MobileButton>
@@ -89,7 +134,7 @@ class SideNav extends React.Component {
     } else {
       loginLink = (
         <li>
-          <MobileButton className='SideNav-button' href={ this.props.loginPath } data-no-route='true'>
+          <MobileButton className='SideNav-button' href={ this.props.loginPath } noRoute='true'>
             <SnooIcon/>
             <span className='SideNav-text'>Login / Register</span>
           </MobileButton>
@@ -130,6 +175,12 @@ class SideNav extends React.Component {
     return (
       <nav className={'SideNav tween shadow' + (this.state.opened?' opened':'')}>
         <ul className='list-unstyled'>
+          <li>
+            <form method='GET' action='/goto' onSubmit={ this._goto } className='form-sm form-single'>
+              <input type='text' className='form-control form-control-sm' placeholder='r/...' name='location' ref='location' />
+              <button type='submit' className='btn btn-default'>Go</button>
+            </form>
+          </li>
           { loginLink }
           { logoutLink }
           <li>
@@ -226,7 +277,7 @@ class SideNav extends React.Component {
             </ul>
           </li>
           <li>
-            <MobileButton className='SideNav-button' href='http://www.reddit.com/'>
+            <MobileButton className='SideNav-button' href={`https://www.reddit.com${this.props.url}`} onClick={ this._desktopSite }>
               <SnooIcon/>
               <span className='SideNav-text'>View Desktop Site</span>
             </MobileButton>
@@ -298,7 +349,18 @@ class SideNav extends React.Component {
     var app = this.props.app;
 
     var compact = this.state.compact;
-    document.cookie = 'compact=' + (!compact) + '; expires=Fri, 31 Dec 2020 23:59:59 GMT';
+
+    let date = new Date();
+    date.setFullYear(date.getFullYear() + 2);
+
+    cookies.set('compact', (!compact).toString(), {
+      expires: date,
+      secure: this.props.app.getConfig('https') || this.props.app.getConfig('httpsProxy'),
+    });
+
+    this.setState({
+      show: false,
+    });
 
     app.emit(constants.COMPACT_TOGGLE, !compact);
     this._close();
@@ -309,13 +371,4 @@ class SideNav extends React.Component {
   }
 }
 
-function SideNavFactory(app) {
-  MobileButton = MobileButtonFactory(app);
-  MailIcon = MailIconFactory(app);
-  SettingsIcon = SettingsIconFactory(app);
-  SnooIcon = SnooIconFactory(app);
-  TwirlyIcon = TwirlyIconFactory(app);
-  return app.mutate('core/components/SideNav', SideNav);
-}
-
-export default SideNavFactory;
+export default SideNav;

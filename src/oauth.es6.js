@@ -2,6 +2,10 @@ import crypto from 'crypto';
 import scmp from 'scmp';
 import superagent from 'superagent';
 import uuid from 'uuid';
+import url from 'url';
+import querystring from 'querystring';
+
+var SCOPE = 'history,identity,mysubreddits,read,subscribe,vote,submit,save';
 
 // set up oauth routes
 var oauthRoutes = function(app) {
@@ -64,18 +68,172 @@ var oauthRoutes = function(app) {
 
   function refreshToken (ctx, rToken) {
     return new Promise(function(resolve, reject) {
-      var token = OAuth2.accessToken.create({
-        'refresh_token': rToken,
-      });
+      var endpoint = app.config.nonAuthAPIOrigin + '/api/v1/access_token';
+      var b;
 
-      token.refresh(function(error, result) {
-        if (error) { return reject(error); }
-        return resolve(result);
-      });
+      if (app.config.oauth.secretClientId) {
+        b = new Buffer(
+          app.config.oauth.secretClientId + ':' + app.config.oauth.secretSecret
+        );
+      } else {
+        b = new Buffer(
+          app.config.oauth.clientId + ':' + app.config.oauth.secret
+        );
+      }
+
+      var s = b.toString('base64');
+
+      var basicAuth = 'Basic ' + s;
+
+      var data = {
+        grant_type: 'refresh_token',
+        refresh_token: rToken,
+      };
+
+      var headers = {
+        'User-Agent': ctx.headers['user-agent'],
+        'Authorization': basicAuth,
+      };
+
+      Object.assign(headers, app.config.apiHeaders || {});
+
+      superagent
+        .post(endpoint)
+        .set(headers)
+        .type('form')
+        .send(data)
+        .end((err, res) => {
+          if (err || !res.ok) {
+            return reject(err || res);
+          }
+
+          /* temporary while api returns a `200` with an error in body */
+          if (res.body.error) {
+            return reject(401);
+          }
+
+          var token = OAuth2.accessToken.create(res.body);
+          return resolve(token);
+        });
     });
   }
 
   app.refreshToken = refreshToken;
+
+  function convertSession(ctx, session) {
+    return new Promise(function(resolve, reject) {
+      let endpoint = app.config.nonAuthAPIOrigin + '/api/me.json';
+
+      let cookie = ctx.headers['cookie'].replace(/__cf_mob_redir=1/, '__cf_mob_redir=0');
+
+      let headers = {
+        'User-Agent': ctx.headers['user-agent'],
+        cookie: cookie,
+        'accept-encoding': ctx.headers['accept-encoding'],
+        'accept-language': ctx.headers['accept-language'],
+      };
+
+      Object.assign(headers, app.config.apiHeaders || {});
+
+      superagent
+        .get(endpoint)
+        .set(headers)
+        .end((err, res) => {
+          if (err || !res.ok) {
+            return reject(err || res);
+          }
+
+          if (res.body.error) {
+            return reject(401);
+          }
+
+          let modhash = res.body.data.modhash;
+          let endpoint = app.config.nonAuthAPIOrigin + '/api/v1/authorize';
+
+          let redirect_uri = app.config.origin + '/oauth2/token';
+
+          let clientId;
+          let clientSecret;
+
+          if (app.config.oauth.secretClientId) {
+            clientId = app.config.oauth.secretClientId;
+            clientSecret = app.config.oauth.secretSecret;
+          } else {
+            clientId = app.config.oauth.clientId;
+            clientSecret = app.config.oauth.secret;
+          }
+
+
+          let postParams = {
+            client_id: clientId,
+            redirect_uri: redirect_uri,
+            scope: SCOPE,
+            state: modhash,
+            duration: 'permanent',
+            authorize: 'yes',
+          }
+
+          headers['x-modhash'] = modhash;
+
+          superagent
+            .post(endpoint)
+            .set(headers)
+            .type('form')
+            .send(postParams)
+            .redirects(0)
+            .end((err, res) => {
+              if (res.status !== 302) {
+                return resolve(res.status || 500);
+              }
+
+              if (res.body.error) {
+                return resolve(401);
+              }
+
+              let location = url.parse(res.headers.location, true);
+              let code = location.query.code;
+
+              let endpoint = app.config.nonAuthAPIOrigin + '/api/v1/access_token';
+
+              let postData = {
+                grant_type: 'authorization_code',
+                code: code,
+                redirect_uri: redirect_uri,
+              };
+
+              let b = new Buffer(
+                clientId + ':' + clientSecret
+              );
+
+              let s = b.toString('base64');
+              let basicAuth = 'Basic ' + s;
+
+              let headers = {
+                'User-Agent': ctx.headers['user-agent'],
+                'Authorization': basicAuth,
+              };
+
+              Object.assign(headers, app.config.apiHeaders || {});
+
+              superagent
+                .post(endpoint)
+                .set(headers)
+                .send(postData)
+                .type('form')
+                .end(function(err, res) {
+                  if (!res.ok) {
+                    reject(err);
+                  }
+
+                  let token = OAuth2.accessToken.create(res.body)
+                  return resolve(token);
+                });
+            });
+        });
+    });
+  }
+
+  app.convertSession = convertSession;
 
   var OAuth2 = require('simple-oauth2')({
     clientID: app.config.oauth.clientId,
@@ -99,7 +257,7 @@ var oauthRoutes = function(app) {
     if ((!this.get('Referer')) || (this.get('Referer') && this.get('Referer').slice(0, origin.length) === origin)) {
       redirectURI = OAuth2.authCode.authorizeURL({
         redirect_uri: redirect,
-        scope: 'history,identity,mysubreddits,read,subscribe,vote,submit,save',
+        scope: SCOPE, 
         state: `${state}|${referer}`,
         duration: 'permanent',
       });
@@ -114,6 +272,9 @@ var oauthRoutes = function(app) {
     this.cookies.set('token');
     this.cookies.set('tokenExpires');
     this.cookies.set('refreshToken');
+    this.cookies.set('reddit_session', undefined, {
+      domain: '.reddit.com',
+    });
     this.redirect('/');
   });
 
@@ -230,9 +391,14 @@ var oauthRoutes = function(app) {
    */
   router.post('/login', function * () {
     var status = yield login(this.body.username, this.body.password, this);
+    var dest = this.body.originalUrl || '';
 
     if (status === 200) {
-      this.redirect('/');
+      if (dest) {
+        this.redirect(app.config.origin + dest);
+    } else {
+        this.redirect('/');
+      }
     } else {
       this.redirect('/login?error=' + status);
     }
@@ -241,6 +407,7 @@ var oauthRoutes = function(app) {
   router.post('/register', function * () {
     var ctx = this;
     var endpoint = app.config.nonAuthAPIOrigin + '/api/register';
+    var dest = this.body.originalUrl || '';
 
     var data = {
       user: ctx.body.username,
@@ -289,7 +456,11 @@ var oauthRoutes = function(app) {
 
           login(data.user, data.passwd, ctx).then(function(status) {
             if (status === 200) {
-              return resolve(ctx.redirect('/'));
+              if (dest) {
+                return resolve(ctx.redirect(app.config.origin + dest));
+              } else {
+                return resolve(ctx.redirect('/'));
+              }
             } else {
               return resolve(ctx.redirect('/login?error=' + status));
             }

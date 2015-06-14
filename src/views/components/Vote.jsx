@@ -2,12 +2,9 @@ import React from 'react';
 import { models } from 'snoode';
 import constants from '../../constants';
 
-import UpvoteIconFactory from '../components/icons/UpvoteIcon';
-var UpvoteIcon;
-import DownvoteIconFactory from '../components/icons/DownvoteIcon';
-var DownvoteIcon;
-import MobileButtonFactory from '../components/MobileButton';
-var MobileButton;
+import UpvoteIcon from '../components/icons/UpvoteIcon';
+import DownvoteIcon from '../components/icons/DownvoteIcon';
+import MobileButton from '../components/MobileButton';
 
 class Vote extends React.Component {
   constructor(props) {
@@ -58,15 +55,20 @@ class Vote extends React.Component {
   }
 
   _onVote(dir) {
-    var localScore = Math.min(1, Math.max(-1, dir - this.state.localScore));
-    this.setState({localScore: localScore, score: this._score + localScore});
-    this.submitVote(localScore);
+    if (this.submitVote(dir)) {
+      var localScore = Math.min(1, Math.max(-1, dir - this.state.localScore));
+      this.setState({localScore: localScore, score: this._score + localScore});
+    }
   }
 
   submitVote(direction) {
     if (!this.props.token) {
       window.location = this.props.loginPath;
       return;
+    }
+
+    if (this.state.localScore === direction) {
+      direction = 0;
     }
 
     var vote = new models.Vote({
@@ -82,6 +84,8 @@ class Vote extends React.Component {
 
     this.props.api.votes.post(options);
     this.props.app.emit('vote', vote);
+
+    return true;
   }
 
   render() {
@@ -99,7 +103,7 @@ class Vote extends React.Component {
               <MobileButton type='submit'
                 className={'vote text-muted ' + (voteClass || '')} data-vote='up' data-thingid={ this.props.thing.name }
                 data-no-route='true' onClick={this._onClick.bind(this, 'upvote')}>
-                <UpvoteIcon altered={this.state.localScore > 0} />
+                <UpvoteIcon altered={this.state.localScore > 0}/>
               </MobileButton>
             </form>
           </li>
@@ -123,11 +127,4 @@ class Vote extends React.Component {
   }
 }
 
-function VoteFactory(app) {
-  UpvoteIcon = UpvoteIconFactory(app);
-  DownvoteIcon = DownvoteIconFactory(app);
-  MobileButton = MobileButtonFactory(app);
-  return app.mutate('core/components/vote', Vote);
-}
-
-export default VoteFactory;
+export default Vote;

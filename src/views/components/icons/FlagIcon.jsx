@@ -1,6 +1,5 @@
 import React from 'react';
-import SVGFactory from '../../components/SVG';
-var SVG;
+import SVG from '../../components/SVG';
 
 const _POINTS = [
   {x: 5.833,  y: 5.233},
@@ -17,7 +16,7 @@ class FlagIcon extends React.Component {
     super(props);
     this.state = {};
     this._play = this._play.bind(this);
-    this._maskID = 'mask' + Math.random();
+    this._maskID = 'mask' + global.random();
   }
 
   render() {
@@ -30,7 +29,7 @@ class FlagIcon extends React.Component {
         </defs>
         <circle className='SVG-fill' cx={SVG.ICON_SIZE / 2} cy={SVG.ICON_SIZE / 2} r={SVG.ICON_SIZE / 2}/>
         <line className='SVG-stroke-bg' strokeWidth='0.7' strokeLinecap='round' x1='5' y1='5' x2='5' y2='15.8'/>
-        <path ref='flag' className='SVG-fill-bg' clip-path={'url(#' + this._maskID + ')'} d='M10.8,5.5c-2.1,1.2-5-0.2-5-0.2s-3-1.4-5-0.2c-2.1,1.2-5-0.2-5-0.2v6.7c0,0,2.9,1.2,5,0.2c2.2-1,5,0.2,5,0.2s2.9,1.2,5,0.2 c2.2-1,5,0.2,5,0.2V5.7C15.8,5.7,12.9,4.3,10.8,5.5z'/>
+        <path ref='flag' className='SVG-fill-bg' clipPath={'url(#' + this._maskID + ')'} d='M10.8,5.5c-2.1,1.2-5-0.2-5-0.2s-3-1.4-5-0.2c-2.1,1.2-5-0.2-5-0.2v6.7c0,0,2.9,1.2,5,0.2c2.2-1,5,0.2,5,0.2s2.9,1.2,5,0.2 c2.2-1,5,0.2,5,0.2V5.7C15.8,5.7,12.9,4.3,10.8,5.5z'/>
       </SVG>
     );
   }
@@ -80,9 +79,4 @@ FlagIcon.defaultProps = {
   played: false,
 };
 
-function FlagIconFactory(app) {
-  SVG = SVGFactory(app);
-  return app.mutate('core/components/icons/FlagIcon', FlagIcon);
-}
-
-export default FlagIconFactory;
+export default FlagIcon;

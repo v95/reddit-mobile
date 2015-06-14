@@ -1,20 +1,13 @@
 import React from 'react';
 import moment from 'moment';
 
-import VoteFactory from '../components/Vote';
-var Vote;
+import Vote from '../components/Vote';
+import CommentBox from '../components/CommentBox';
+import MobileButton from '../components/MobileButton';
+import ListingDropdown from '../components/ListingDropdown';
+import ReplyIcon from '../components/icons/ReplyIcon';
 
-import CommentBoxFactory from '../components/CommentBox';
-var CommentBox;
-
-import MobileButtonFactory from '../components/MobileButton';
-var MobileButton;
-
-import ListingDropdownFactory from '../components/ListingDropdown';
-var ListingDropdown;
-
-import ReplyIconFactory from '../components/icons/ReplyIcon';
-var ReplyIcon;
+import ReportPlaceholder from '../components/ReportPlaceholder';
 
 import short from '../../lib/formatDifference';
 import mobilify from '../../lib/mobilify';
@@ -30,7 +23,33 @@ class Comment extends React.Component {
       showTools: false,
       favorited: false,
       optionsOpen: false,
+      reported: false,
+      savedReply: '',
+      hidden: false,
     }
+  }
+
+  componentDidMount () {
+    var savedReply = window.localStorage.getItem(this.props.comment.name);
+    if (savedReply) {
+      this.setState({
+        savedReply: savedReply,
+        showReplyBox: true,
+        showTools: true,
+      });
+      var domNode = React.findDOMNode(this);
+      domNode.scrollIntoView();
+    }
+
+    this.onReport = this.onReport.bind(this);
+  }
+
+  onReport () {
+    this.setState({ reported: true });
+  }
+
+  onHide () {
+    this.setState({ hidden: true });
   }
 
   shouldComponentUpdate (nextProps, nextState) {
@@ -94,6 +113,14 @@ class Comment extends React.Component {
   }
 
   render () {
+    if (this.state.hidden) {
+      return (<div />);
+    }
+
+    if (this.state.reported) {
+      return (<ReportPlaceholder />);
+    }
+
     var props = this.props;
     var comment = this.state.comment;
 
@@ -109,8 +136,6 @@ class Comment extends React.Component {
     var children;
     var vote;
 
-    var permalink = '/comment/' + comment.id + '?context=3';
-
     var distinguished = comment.distinguished ? ' text-' + comment.distinguished : '';
 
     var scoreClass = 'up';
@@ -118,15 +143,25 @@ class Comment extends React.Component {
     var commentBox;
     var toolbox;
     var highlighted = '';
-    var app = props.app;
 
-    if (this.state.showTools) {
+    var permalink;
+
+    if (this.props.permalinkBase) {
+      permalink = this.props.permalinkBase + comment.id;
+    }
+
+    if (this.state.showTools || props.highlight === comment.id) {
       highlighted = 'comment-highlighted';
+
       if (this.state.showReplyBox) {
+        if (this.state.savedReply) {
+          props.savedReply = this.state.savedReply;
+        }
         commentBox = (
-          <CommentBox {...props} thingId={ comment.name } onSubmit={ this.onNewComment.bind(this) }  />
+          <CommentBox ref='commentBox' {...props} thingId={ comment.name } onSubmit={ this.onNewComment.bind(this) }  />
         );
       }
+
       toolbox = (
         <ul className='linkbar-spread linkbar-spread-5 comment-toolbar clearfix'>
           <li>
@@ -136,7 +171,7 @@ class Comment extends React.Component {
           </li>
           <li className='linkbar-spread-li-double comment-vote-container comment-svg'>
             <Vote
-              app={app}
+              app={this.props.app}
               thing={ this.props.comment }
               token={ this.props.token }
               api={ this.props.api }
@@ -147,8 +182,14 @@ class Comment extends React.Component {
           <li>
             <div className="encircle-icon encircle-options-icon">
               <ListingDropdown
-                listing={this.props.comment}
-                app={this.props.app}/>
+                saved={ props.comment.saved }
+                subreddit={ props.subredditName }
+                permalink={ permalink }
+                onReport={ this.onReport }
+                token={ props.token }
+                apiOptions={ props.apiOptions }
+                listing={props.comment}
+                app={props.app}/>
             </div>
           </li>
         </ul>
@@ -250,14 +291,4 @@ class Comment extends React.Component {
   }
 }
 
-function CommentFactory(app) {
-  Vote = VoteFactory(app);
-  CommentBox = CommentBoxFactory(app);
-  MobileButton = MobileButtonFactory(app);
-  ListingDropdown = ListingDropdownFactory(app);
-  ReplyIcon = ReplyIconFactory(app);
-
-  return app.mutate('core/components/comment', Comment);
-}
-
-export default CommentFactory;
+export default Comment;

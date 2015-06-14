@@ -24,6 +24,12 @@ class TrackingPixel extends React.Component {
         trackingUrl += '&view_type=list';
       }
 
+      if (this.props.experiments && this.props.experiments.length) {
+        trackingUrl += '&exps=' + this.props.experiments.map((e) => {
+          return e.id + ':' + e.value;
+        }).join(';');
+      }
+
       return (
         <img src={ trackingUrl } style={{ display: 'none' }} width='0' height='0' />
       );
@@ -33,8 +39,4 @@ class TrackingPixel extends React.Component {
   }
 }
 
-function TrackingPixelFactory(app) {
-  return app.mutate('core/components/trackingPixel', TrackingPixel);
-}
-
-export default TrackingPixelFactory;
+export default TrackingPixel;

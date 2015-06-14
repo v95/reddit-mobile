@@ -1,23 +1,22 @@
+import _ from 'lodash';
 import React from 'react';
 import constants from '../../constants';
+import Listing from '../components/Listing';
+import CommentPreview from '../components/CommentPreview';
+import Ad from '../components/Ad';
 
-import ListingFactory from '../components/Listing';
-var Listing;
-
-import CommentPreviewFactory from '../components/CommentPreview';
-var CommentPreview;
+const AD_LOCATION = 11;
 
 class ListingList extends React.Component {
   constructor(props) {
     super(props);
 
     this.state = {
+      adLocation: Math.min(AD_LOCATION, props.listings.length)
     };
 
     this._scroll = this._scroll.bind(this);
     this._resize = this._resize.bind(this);
-    this._removeListeners = this._removeListeners.bind(this);
-
   }
 
   componentDidMount() {
@@ -38,10 +37,21 @@ class ListingList extends React.Component {
     var winHeight = window.innerHeight * 2;
     for (var i = 0; i < this.length; i++) {
       var ref = this.refs['listing' + i];
-      if (ref) {
+      if (ref && ref.checkPos) {
         var keepGoing = ref.checkPos(winHeight);
         if (!keepGoing) {
-          return;
+          if (i === this.state.adLocation) {
+            var adRef = this.refs.ad;
+
+            if (adRef) {
+              var listing = adRef.getListingElement();
+              if (listing && listing.checkPos(winHeight)) {
+                return;
+              }
+            }
+          } else {
+            return;
+          }
         }
       }
     }
@@ -57,21 +67,36 @@ class ListingList extends React.Component {
   }
 
   _resize() {
-    if (this.props.compact) {
-      for (var i = 0; i < this.length; i++) {
-        var ref = this.refs['listing' + i];
-        if (ref) {
-          ref.resize();
-        }
+    var width = this.refs.root.getDOMNode().offsetWidth;
+    for (var i = 0; i < this.length; i++) {
+      var ref = this.refs['listing' + i];
+      if (ref && ref.resize) {
+        ref.resize(width);
       }
+    }
+  }
+
+  buildAd() {
+    if (this.props.listings.length > 0) {
+      var srnames = _.uniq(this.props.listings.map(function(l) {
+        return l.subreddit;
+      }));
+
+      return (
+        <Ad { ...this.props } srnames={srnames} key='ad' ref='ad' />
+      );
     }
   }
 
   render() {
     var props = this.props;
     var page = props.firstPage || 0;
+
+    var ad;
+
     var listings = (
       props.listings.map(function(listing, i) {
+
         var index = (page * 25) + i;
         if (listing._type === 'Comment') {
           return (
@@ -83,7 +108,7 @@ class ListingList extends React.Component {
             />
           );
         } else {
-          if (!listing.hidden) {
+          if (props.showHidden || !listing.hidden) {
             return (
               <Listing
                 ref={'listing' + i}
@@ -97,16 +122,23 @@ class ListingList extends React.Component {
         }
       })
     );
+
+    // If ads are enabled, splice an ad into the listings.
+    if (this.props.showAds && listings.length) {
+      ad = this.buildAd();
+      listings.splice(this.state.adLocation, 0, ad);
+    }
+
     this.length = listings.length;
 
-    return <span>{listings}</span>;
+    return <div ref='root'>{listings}</div>;
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (prevProps.compact !== this.props.compact) {
+      this._resize();
+    }
   }
 }
 
-function ListingListFactory(app) {
-  Listing = ListingFactory(app);
-  CommentPreview = CommentPreviewFactory(app);
-  return app.mutate('core/components/listingList', ListingList);
-}
-
-export default ListingListFactory;
+export default ListingList;

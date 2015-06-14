@@ -1,7 +1,5 @@
 import React from 'react';
-import LiveReloadFactory from '../components/LiveReload';
-
-var LiveReload;
+import LiveReload from '../components/LiveReload';
 
 class DefaultLayout extends React.Component {
   constructor(props) {
@@ -12,7 +10,6 @@ class DefaultLayout extends React.Component {
     var assetPath = this.props.assetPath;
 
     var baseCSS = assetPath + '/css/';
-    var fancyCSS = assetPath + '/css/';
     var clientJS = assetPath + '/js/';
 
     var liveReload;
@@ -22,11 +19,9 @@ class DefaultLayout extends React.Component {
 
     if (this.props.minifyAssets) {
       baseCSS += this.props.manifest['base.css'];
-      fancyCSS += this.props.manifest['fancy.css'];
       clientJS += this.props.manifest['client.min.js'];
     } else {
       baseCSS += 'base.css';
-      fancyCSS += 'fancy.css';
       clientJS += 'client.js';
     }
 
@@ -46,12 +41,33 @@ class DefaultLayout extends React.Component {
       );
     }
 
+    var gaTracking;
+
+    if (this.props.propertyId) {
+      let propertyId = this.props.propertyId;
+
+      let trackingCode = `
+        <script>
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+        ga('create', '${propertyId}', 'auto', {'sampleRate': 50});
+        ga('send', 'pageview');
+        </script>
+      `;
+
+      gaTracking = (
+        <div dangerouslySetInnerHTML={{ __html: trackingCode }} />
+      );
+    }
+
     return (
       <html>
         <head>
           <title>{ this.props.title }</title>
           <link href={ baseCSS } rel='stylesheet' />
-          <link href={ fancyCSS } rel='stylesheet' media='screen' />
           <link rel='manifest' href='manifest.json' />
           { canonical }
 
@@ -71,21 +87,16 @@ class DefaultLayout extends React.Component {
         </head>
         <body className='navbar-offcanvas-target'>
           <div id='app-container'>
-            { this.props.children }
+            !!CONTENT!!
           </div>
 
-          <script src={ clientJS }></script>
-          {liveReload}
+          <script src={ clientJS } async='true'></script>
+          { liveReload }
+          { gaTracking }
         </body>
       </html>
     );
   }
 }
 
-function DefaultLayoutFactory(app) {
-  LiveReload = LiveReloadFactory(app);
-
-  return app.mutate('core/layouts/default', DefaultLayout);
-}
-
-export default DefaultLayoutFactory;
+export default DefaultLayout;

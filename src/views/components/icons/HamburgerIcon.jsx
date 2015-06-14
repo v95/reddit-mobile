@@ -1,6 +1,5 @@
 import React from 'react';
-import SVGFactory from '../../components/SVG';
-var SVG;
+import SVG from '../../components/SVG';
 const _SIZE = 20;
 const _MIDDLE = _SIZE / 2;
 const _X_LEFT = 4.343146;
@@ -21,7 +20,7 @@ class HamburgerIcon extends React.Component {
 
   render() {
     return (
-      <SVG width={_SIZE} height={_SIZE} fallbackIcon={this.props.altered ? 'icon-x' : 'icon-hamburger'}>
+      <SVG className='HamburgerIcon SVG-icon' width={_SIZE} height={_SIZE} fallbackIcon={this.props.altered ? 'icon-x' : 'icon-hamburger'}>
         <g ref='all' className='SVG-stroke' strokeWidth='2' strokeLinecap='square'>
           <line ref='topBun' x1={_HAMBURGER_LEFT} y1={_TOP_BUN_Y} x2={_HAMBURGER_RIGHT} y2={_TOP_BUN_Y}/>
           <line ref='patty' x1={_HAMBURGER_LEFT} y1={_MIDDLE} x2={_HAMBURGER_RIGHT} y2={_MIDDLE}/>
@@ -83,9 +82,4 @@ HamburgerIcon.defaultProps = {
   altered: false,
 };
 
-function HamburgerIconFactory(app) {
-  SVG = SVGFactory(app);
-  return app.mutate('core/components/icons/HamburgerIcon', HamburgerIcon);
-}
-
-export default HamburgerIconFactory;
+export default HamburgerIcon;

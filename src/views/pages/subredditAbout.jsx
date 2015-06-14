@@ -2,14 +2,11 @@ import React from 'react';
 import q from 'q';
 import constants from '../../constants';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
+import Loading from '../components/Loading';
+import TrackingPixel from '../components/TrackingPixel';
+import TopSubnav from '../components/TopSubnav';
 
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
-
-import TopSubnavFactory from '../components/TopSubnav';
-var TopSubnav;
+import process from 'reddit-text-js';
 
 class SubredditAboutPage extends React.Component {
   constructor(props) {
@@ -58,19 +55,21 @@ class SubredditAboutPage extends React.Component {
           loid={ this.props.loid }
           loidcreated={ this.props.loidcreated }
           compact={ this.props.compact }
+          experiments={ this.props.experiments }
         />);
     }
 
     var htmlDump;
     if (!loading) {
       var data = this.state.data.data;
+
       htmlDump = [
         <ul className='subreddit-about-numbers' key='subreddit-about-numbers'>
           <li>{ `${data.subscribers} readers` }</li>
           <li>{ `${data.accounts_active} users here now` }</li>
         </ul>,
         <div className='subreddit-about-rules' key='subreddit-about-rules'
-          dangerouslySetInnerHTML={{ __html: data.description_html }}>
+          dangerouslySetInnerHTML={{ __html: process(data.description) }}>
         </div>
       ];
     }
@@ -79,7 +78,12 @@ class SubredditAboutPage extends React.Component {
       <div className='subreddit-about-main'>
         { loading }
 
-        <TopSubnav app={ app } user={ user } hideSort={ true } baseUrl={ this.props.url } loginPath={ this.props.loginPath } />
+        <TopSubnav
+          app={ app }
+          user={ user }
+          hideSort={ true }
+          baseUrl={ this.props.url }
+          loginPath={ this.props.loginPath } />
 
         <div className='container' key='container'>
           { htmlDump }
@@ -112,21 +116,14 @@ class SubredditAboutPage extends React.Component {
       return defer.promise;
     }
 
-    api.subreddits.get(options).done(function (data) {
+    api.subreddits.get(options).then(function (data) {
       defer.resolve(data);
+    }, function(error) {
+      defer.reject(error);
     });
 
     return defer.promise;
   }
 }
 
-function SubredditAboutPageFactory(app) {
-  Loading = LoadingFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-  TopSubnav = TopSubnavFactory(app);
-
-  return app.mutate('core/pages/listing/about', SubredditAboutPage);
-}
-
-export default SubredditAboutPageFactory;
-
+export default SubredditAboutPage;

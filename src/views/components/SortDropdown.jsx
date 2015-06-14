@@ -3,11 +3,8 @@ import querystring from 'querystring';
 import titleCase from '../../lib/titleCase';
 import constants from '../../constants';
 
-import CheckmarkIconFactory from '../components/icons/CheckmarkIcon';
-var CheckmarkIcon;
-
-import DropdownFactory from '../components/Dropdown';
-var Dropdown;
+import CheckmarkIcon from '../components/icons/CheckmarkIcon';
+import Dropdown from '../components/Dropdown';
 
 var _LISTS = {
   listings: [
@@ -73,7 +70,14 @@ class SortDropdown extends React.Component {
   }
 
   render() {
+    var excludedSorts = this.props.excludedSorts || [];
     var list = _LISTS[this.props.list];
+
+    if (excludedSorts.length) {
+      list = list.filter(l => {
+        return !excludedSorts.includes(l.param);
+      });
+    }
 
     var baseUrl = this.props.baseUrl || '/';
 
@@ -122,10 +126,4 @@ class SortDropdown extends React.Component {
   }
 }
 
-function SortDropdownFactory(app) {
-  CheckmarkIcon = CheckmarkIconFactory(app);
-  Dropdown = DropdownFactory(app);
-  return app.mutate('core/components/SortDropdown', SortDropdown);
-}
-
-export default SortDropdownFactory;
+export default SortDropdown;

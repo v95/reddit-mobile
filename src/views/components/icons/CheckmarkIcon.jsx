@@ -1,24 +1,23 @@
 import React from 'react';
-import SVGFactory from '../../components/SVG';
-var SVG;
+import SVG from '../../components/SVG';
 
 class CheckmarkIcon extends React.Component {
   constructor(props) {
     super(props);
     this.state = {};
     this._play = this._play.bind(this);
-    this._maskID = 'mask' + Math.random();
+    this._maskID = 'mask' + global.random();
   }
 
   render() {
     return (
-      <SVG fallbackIcon={this.props.played ? 'icon-check' : null}>
+      <SVG className='SVG-icon CheckmarkIcon' fallbackIcon={this.props.played ? 'icon-check' : null}>
         <defs>
           <clipPath id={this._maskID}>
             <rect ref='mask' x='0' y='0' width='0' height={SVG.ICON_SIZE} fill='#000'/>
           </clipPath>
         </defs>
-        <polyline ref='line' fill='none' stroke='#52AA19' strokeWidth='2' strokeMiterlimit='10' points='2.575379,10 7.525126,14.949747 17.424622,5.050252' clip-path={'url(#'+this._maskID+')'}/>
+        <polyline ref='line' fill='none' stroke='#52AA19' strokeWidth='2' strokeMiterlimit='10' points='2.575379,10 7.525126,14.949747 17.424622,5.050252' clipPath={'url(#'+this._maskID+')'}/>
       </SVG>
     );
   }
@@ -52,9 +51,4 @@ CheckmarkIcon.defaultProps = {
   played: false,
 };
 
-function CheckmarkIconFactory(app) {
-  SVG = SVGFactory(app);
-  return app.mutate('core/components/icons/CheckmarkIcon', CheckmarkIcon);
-}
-
-export default CheckmarkIconFactory;
+export default CheckmarkIcon;

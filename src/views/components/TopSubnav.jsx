@@ -1,6 +1,6 @@
 import React from 'react';
-import SortDropdownFactory from '../components/SortDropdown';
-var SortDropdown;
+
+import SortDropdown from '../components/SortDropdown';
 
 class TopSubnav extends React.Component {
   constructor(props) {
@@ -17,8 +17,13 @@ class TopSubnav extends React.Component {
 
     var sort = null;
     if (!this.props.hideSort){
-      sort = <SortDropdown app={ this.props.app } sort={ this.props.sort } list={ this.props.list }
-                           baseUrl={ this.props.baseUrl }/>;
+      sort = <SortDropdown
+               app={ this.props.app }
+               sort={ this.props.sort }
+               excludedSorts={ this.props.excludedSorts }
+               list={ this.props.list }
+               baseUrl={ this.props.baseUrl }
+             />;
     }
 
     return (
@@ -30,9 +35,4 @@ class TopSubnav extends React.Component {
   }
 }
 
-function TopSubnavFactory(app) {
-  SortDropdown = SortDropdownFactory(app);
-  return app.mutate('core/components/TopSubnav', TopSubnav);
-}
-
-export default TopSubnavFactory;
+export default TopSubnav;

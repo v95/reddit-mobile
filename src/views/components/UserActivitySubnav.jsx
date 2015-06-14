@@ -2,14 +2,9 @@ import React from 'react';
 import querystring from 'querystring';
 import constants from '../../constants';
 
-import SortDropdownFactory from '../components/SortDropdown';
-var SortDropdown;
-
-import DropdownFactory from '../components/Dropdown';
-var Dropdown;
-
-import CheckmarkIconFactory from '../components/icons/CheckmarkIcon';
-var CheckmarkIcon;
+import SortDropdown from '../components/SortDropdown';
+import Dropdown from '../components/Dropdown';
+import CheckmarkIcon from '../components/icons/CheckmarkIcon';
 
 class UserActivitySubnav extends React.Component {
   constructor(props) {
@@ -110,6 +105,8 @@ class UserActivitySubnav extends React.Component {
       loginLink = <a className='TopSubnav-a' href={ this.props.loginPath } data-no-route='true'>Log in / Register</a>;
     }
 
+    var props = this.props;
+
     return (
       <div className='TopSubnav'>
         <Dropdown app={ this.props.app } id={ this._id } button={ button } className='Dropdown-inline'>
@@ -143,11 +140,4 @@ class UserActivitySubnav extends React.Component {
   }
 }
 
-function UserActivitySubnavFactory(app) {
-  Dropdown = DropdownFactory(app);
-  SortDropdown = SortDropdownFactory(app);
-  CheckmarkIcon = CheckmarkIconFactory(app);
-  return app.mutate('core/components/UserActivitySubnav', UserActivitySubnav);
-}
-
-export default UserActivitySubnavFactory;
+export default UserActivitySubnav;

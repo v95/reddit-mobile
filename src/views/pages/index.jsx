@@ -3,17 +3,10 @@ import q from 'q';
 import querystring from 'querystring';
 import constants from '../../constants';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
-
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
-
-import ListingListFactory from '../components/ListingList';
-var ListingList;
-
-import TopSubnavFactory from '../components/TopSubnav';
-var TopSubnav;
+import Loading from '../components/Loading';
+import TrackingPixel from '../components/TrackingPixel';
+import ListingList from '../components/ListingList';
+import TopSubnav from '../components/TopSubnav';
 
 class IndexPage extends React.Component {
   constructor(props) {
@@ -96,10 +89,16 @@ class IndexPage extends React.Component {
 
     var tracking;
 
+    var loginPath = props.loginPath;
+    var apiOptions = props.apiOptions;
+
     var subreddit = '';
 
     if (props.subredditName) {
       subreddit = '/r/' + props.subredditName;
+      loginPath += '/?' + querystring.stringify({
+        originalUrl: props.url,
+      });
     }
 
     if (props.multi) {
@@ -107,6 +106,11 @@ class IndexPage extends React.Component {
     }
 
     var sort = props.sort || 'hot';
+    var excludedSorts = [];
+
+    if (!props.subredditName || props.multi) {
+      excludedSorts.push('gilded');
+    }
 
     if (listings.length) {
       firstId = listings[0].name;
@@ -141,9 +145,6 @@ class IndexPage extends React.Component {
       );
     }
 
-    var loginPath = props.loginPath;
-    var apiOptions = props.apiOptions;
-
     if (this.state.data.meta && props.renderTracking) {
       tracking = (
         <TrackingPixel
@@ -152,8 +153,16 @@ class IndexPage extends React.Component {
           loid={ props.loid }
           loidcreated={ props.loidcreated }
           compact={ compact }
-          />);
+          experiments={ props.experiments }
+        />);
     }
+
+    var showAds = !!props.adsPath;
+
+    if (props.prefs && props.prefs.hide_ads === true) {
+      showAds = false;
+    }
+
     return (
       <div>
         { loading }
@@ -163,13 +172,16 @@ class IndexPage extends React.Component {
           user={ user }
           sort={ sort }
           list='listings'
+          excludedSorts={ excludedSorts }
           baseUrl={ props.url }
-          loginPath={ props.loginPath }
+          loginPath={ loginPath }
           apiOptions={ apiOptions }
         />
 
-        <div className={'container listing-container' + (compact ? ' compact' : '')} ref='listings'>
+        <div className={'container Listing-container' + (compact ? ' compact' : '')} ref='listings'>
           <ListingList
+            showAds={ showAds }
+            adsPath={ props.adsPath }
             listings={listings}
             firstPage={page}
             https={ props.https }
@@ -185,7 +197,7 @@ class IndexPage extends React.Component {
             compact={compact}
             subredditTitle={subreddit}
           />
-          <div className='row pageNav IndexPage-buttons-holder-holder'>
+          <div className='pageNav IndexPage-buttons-holder-holder'>
             <div className='col-xs-12 IndexPage-buttons-holder'>
               <p className={'IndexPage-buttons' + (compact ? ' compact' : '')}>
                 { prevButton } { nextButton }
@@ -250,13 +262,4 @@ class IndexPage extends React.Component {
   }
 }
 
-function IndexPageFactory(app) {
-  ListingList = ListingListFactory(app);
-  Loading = LoadingFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-  TopSubnav = TopSubnavFactory(app);
-
-  return app.mutate('core/pages/index', IndexPage);
-}
-
-export default IndexPageFactory;
+export default IndexPage;

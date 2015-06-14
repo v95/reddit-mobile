@@ -11,7 +11,6 @@ var config = {
 
   assetPath: process.env.STATIC_BASE || '',
 
-  cookieDomain: process.env.COOKIE_DOMAIN || '',
   origin: process.env.ORIGIN || 'http://localhost:4444',
   port: process.env.PORT || 4444,
   env: process.env.NODE_ENV || 'development',
@@ -22,9 +21,10 @@ var config = {
   reddit: process.env.REDDIT || 'https://www.reddit.com',
 
   googleAnalyticsId: process.env.GOOGLE_ANALYTICS_ID,
-  googleAnalyticsDomain: process.env.GOOGLE_ANALYTICS_DOMAIN,
 
   loginPath: process.env.LOGIN_PATH || '/oauth2/login',
+
+  adsPath: process.env.ADS_PATH ||  'https://www.reddit.com/api/request_promo.json',
 };
 
 export default config;

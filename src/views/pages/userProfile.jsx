@@ -3,17 +3,10 @@ import q from 'q';
 import querystring from 'querystring';
 import constants from '../../constants';
 
-import LoadingFactory from '../components/Loading';
-var Loading;
-
-import UserProfileFactory from '../components/UserProfile';
-var UserProfile;
-
-import TrackingPixelFactory from '../components/TrackingPixel';
-var TrackingPixel;
-
-import TopSubnavFactory from '../components/TopSubnav';
-var TopSubnav;
+import Loading from '../components/Loading';
+import UserProfile from '../components/UserProfile';
+import TrackingPixel from '../components/TrackingPixel';
+import TopSubnav from '../components/TopSubnav';
 
 class UserProfilePage extends React.Component {
   constructor(props) {
@@ -76,6 +69,7 @@ class UserProfilePage extends React.Component {
           loid={ this.props.loid }
           loidcreated={ this.props.loidcreated }
           compact={ this.props.compact }
+          experiments={ this.props.experiments }
         />);
     }
 
@@ -83,7 +77,12 @@ class UserProfilePage extends React.Component {
       <div className="user-page user-profile">
         { loading }
 
-        <TopSubnav app={ app } user={ user } hideSort={ true } baseUrl={ this.props.url } loginPath={ this.props.loginPath } />
+        <TopSubnav
+          app={ app }
+          user={ user }
+          hideSort={ true }
+          baseUrl={ this.props.url }
+          loginPath={ this.props.loginPath } />
 
         <div>
           { profile }
@@ -130,13 +129,4 @@ class UserProfilePage extends React.Component {
   }
 }
 
-function UserProfilePageFactory(app) {
-  UserProfile = UserProfileFactory(app);
-  Loading = LoadingFactory(app);
-  TrackingPixel = TrackingPixelFactory(app);
-  TopSubnav = TopSubnavFactory(app);
-
-  return app.mutate('core/pages/userProfile', UserProfilePage);
-}
-
-export default UserProfilePageFactory;
+export default UserProfilePage;
